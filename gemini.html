@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patent Decision Converter</title>
+    <style>
+        /* --- CSS VARIABLES & TOKENS --- */
+        :root {
+            /* Palette */
+            --brand-500: #0B6EF6;
+            --brand-400: #1E90FF;
+            --brand-600: #0053C7;
+            
+            --bg-soft: #F3F8FD;   /* Adjusted for better contrast */
+            --bg-body: #F9FAFB;
+            
+            --surface: #FFFFFF;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            --border-light: #E5E7EB;
+
+            /* Dimensions & Effects */
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+            
+            --shadow-soft: 0 10px 40px -10px rgba(11, 78, 160, 0.15);
+            --shadow-hover: 0 20px 40px -10px rgba(11, 78, 160, 0.25);
+            
+            --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- RESET & BASE --- */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        /* --- LAYOUT --- */
+        .app-container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-soft);
+            padding: 40px;
+            display: grid;
+            gap: 32px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--brand-500);
+            letter-spacing: -0.02em;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 8px;
+        }
+
+        /* --- RADIO GRID --- */
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .label-header {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .radio-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .radio-card {
+            position: relative;
+        }
+
+        .radio-card input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .radio-card label {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            background-color: var(--bg-soft);
+            border: 2px solid transparent;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-main);
+            transition: var(--transition);
+            height: 100%;
+        }
+
+        /* Radio Interactions */
+        .radio-card input:checked + label {
+            border-color: var(--brand-500);
+            background-color: #F0F7FF; /* Very light blue */
+            color: var(--brand-600);
+            box-shadow: 0 4px 12px rgba(11, 110, 246, 0.1);
+        }
+
+        .radio-card input:focus-visible + label {
+            outline: 2px solid var(--brand-400);
+            outline-offset: 2px;
+        }
+
+        .radio-card label::before {
+            content: '';
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid #C4D7ED;
+            border-radius: 50%;
+            margin-right: 12px;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+
+        .radio-card input:checked + label::before {
+            border-color: var(--brand-500);
+            background-color: var(--brand-500);
+            box-shadow: inset 0 0 0 3px #fff;
+        }
+
+        /* --- INPUT / OUTPUT AREAS --- */
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+        }
+
+        @media (min-width: 768px) {
+            .editor-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .textarea-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 16px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-light);
+            background-color: #FAFAFA;
+            font-family: 'Courier New', Courier, monospace; /* Monospace for data precision */
+            font-size: 14px;
+            line-height: 1.6;
+            resize: none;
+            transition: var(--transition);
+            outline: none;
+            color: var(--text-main);
+        }
+
+        textarea:focus {
+            border-color: var(--brand-400);
+            background-color: var(--surface);
+            box-shadow: 0 0 0 4px rgba(11, 110, 246, 0.1);
+        }
+
+        textarea::placeholder {
+            color: #A0AEC0;
+        }
+
+        /* --- BUTTONS --- */
+        .actions {
+            display: flex;
+            gap: 16px;
+            justify-content: flex-end;
+            margin-top: 8px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 28px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: var(--transition);
+            border: none;
+            outline: none;
+        }
+
+        .btn-primary {
+            background-color: var(--brand-500);
+            color: white;
+            box-shadow: 0 4px 12px rgba(11, 110, 246, 0.25);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--brand-600);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--brand-500);
+            border: 1px solid var(--border-light);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--bg-soft);
+            border-color: var(--brand-400);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:focus-visible {
+            box-shadow: 0 0 0 3px rgba(11, 110, 246, 0.4);
+        }
+
+        /* --- TOAST NOTIFICATION --- */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background-color: #1F2937; /* Dark Slate */
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: #34D399; /* Green check */
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    </style>
+</head>
+<body>
+
+    <main class="app-container">
+        <header>
+            <h1>DocuConvert Pro</h1>
+            <p class="subtitle">Patent Decision Document Processor</p>
+        </header>
+
+        <section class="control-group">
+            <label class="label-header">Select Document Type</label>
+            <div class="radio-grid" role="radiogroup">
+                <div class="radio-card">
+                    <input type="radio" name="mode" id="mode-office" value="office_action" checked>
+                    <label for="mode-office">Office Action</label>
+                </div>
+                <div class="radio-card">
+                    <input type="radio" name="mode" id="mode-final" value="final_office_action">
+                    <label for="mode-final">Final Office Action</label>
+                </div>
+                <div class="radio-card">
+                    <input type="radio" name="mode" id="mode-amendment" value="amendment_refused">
+                    <label for="mode-amendment">Amendment Refused</label>
+                </div>
+                <div class="radio-card">
+                    <input type="radio" name="mode" id="mode-pre" value="pre_exam">
+                    <label for="mode-pre">Pre-exam Report</label>
+                </div>
+                <div class="radio-card">
+                    <input type="radio" name="mode" id="mode-pct" value="pct">
+                    <label for="mode-pct">PCT</label>
+                </div>
+            </div>
+        </section>
+
+        <section class="editor-grid">
+            <div class="textarea-wrapper">
+                <label class="label-header" for="input-text">Input Source</label>
+                <textarea id="input-text" placeholder="Paste full-width text here..."></textarea>
+                <div class="actions">
+                    <button class="btn btn-primary" id="btn-convert">Convert Text</button>
+                </div>
+            </div>
+
+            <div class="textarea-wrapper">
+                <label class="label-header" for="output-text">Conversion Result</label>
+                <textarea id="output-text" readonly placeholder="Processed text will appear here..."></textarea>
+                <div class="actions">
+                    <button class="btn btn-secondary" id="btn-copy">Copy Result</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast" class="toast">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Copied to clipboard!</span>
+    </div>
+
+    <script>
+        /**
+         * APPLICATION LOGIC
+         * -----------------
+         * 1. Utility Functions (Half-width conversion)
+         * 2. Mode Strategies (Placeholder functions for business logic)
+         * 3. Event Handling (UI wiring)
+         */
+
+        // --- 1. Utility Functions ---
+
+        /**
+         * Converts full-width characters (Zenkaku) to half-width (Hankaku).
+         * Covers ASCII range and full-width spaces.
+         */
+        const toHalfWidth = (str) => {
+            if (!str) return '';
+            return str
+                .replace(/[！-～]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0xFEE0))
+                .replace(/　/g, ' '); // Convert full-width space
+        };
+
+        const showToast = (message) => {
+            const toast = document.getElementById('toast');
+            // Allow dynamic message if needed, currently using static HTML
+            toast.classList.add('show');
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        };
+
+        // --- 2. Mode Strategies (The Logic Core) ---
+        // Modify these individual functions to implement specific patent document logic.
+
+        const strategies = {
+            office_action: (text) => {
+                console.log("Strategy: Office Action");
+                // TODO: Add specific formatting for Non-Final Office Action
+                return text;
+            },
+            final_office_action: (text) => {
+                console.log("Strategy: Final Office Action");
+                // TODO: Add specific formatting for Final Rejection
+                return text;
+            },
+            amendment_refused: (text) => {
+                console.log("Strategy: Amendment Refused");
+                // TODO: Add specific formatting for Amendment Refusal
+                return text;
+            },
+            pre_exam: (text) => {
+                console.log("Strategy: Pre-exam Report");
+                // TODO: Add specific formatting for Pre-exam Report
+                return text;
+            },
+            pct: (text) => {
+                console.log("Strategy: PCT");
+                // TODO: Add specific formatting for PCT Applications
+                return text;
+            }
+        };
+
+        // --- 3. Event Wiring ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnConvert = document.getElementById('btn-convert');
+            const btnCopy = document.getElementById('btn-copy');
+            const inputText = document.getElementById('input-text');
+            const outputText = document.getElementById('output-text');
+            const modeRadios = document.getElementsByName('mode');
+
+            // Convert Action
+            btnConvert.addEventListener('click', () => {
+                const rawInput = inputText.value;
+                if (!rawInput) return;
+
+                // 1. Normalize: Always convert to half-width first
+                const normalizedText = toHalfWidth(rawInput);
+
+                // 2. Identify active mode
+                let selectedMode = 'office_action'; // default
+                for (const radio of modeRadios) {
+                    if (radio.checked) {
+                        selectedMode = radio.value;
+                        break;
+                    }
+                }
+
+                // 3. Execute Strategy
+                const transformFn = strategies[selectedMode];
+                const result = transformFn ? transformFn(normalizedText) : normalizedText;
+
+                // 4. Output
+                outputText.value = result;
+            });
+
+            // Copy Action
+            btnCopy.addEventListener('click', async () => {
+                const textToCopy = outputText.value;
+                if (!textToCopy) return;
+
+                try {
+                    await navigator.clipboard.writeText(textToCopy);
+                    showToast();
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    alert('Could not access clipboard. Please copy manually.');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
