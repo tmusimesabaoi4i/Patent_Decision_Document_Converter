@@ -7,15 +7,19 @@
  *
  * ▼ 前提
  *   - filterRegistry/filterRegistry.js が先に読み込まれており、
- *     window.FilterRegistry が利用可能であること。
- *   - TextTransformer/TextTransformer.js が読み込まれており、
- *     TextUtils または TextTransformer のいずれかに
+ *     root.FilterRegistry が利用可能であること。
+ *   - textUtils.js が読み込まれており、
+ *     root.TextUtils に
  *       nl, hw, lead, clean, rmBlank, squeeze, trim, gap
  *     が定義されていること。
  *
  * ▼ 公開されるもの
- *   - window.TextFilterRegistry
+ *   - root.TextFilterRegistry
  *       "init" という名前のフィルタリストを 1 つ登録済みの FilterRegistry インスタンス。
+ *   - root.runTextChains(names, str, ...)
+ *       複数のフィルタリストを順番に実行する汎用ヘルパ。
+ *   - root.runInitFilters(str, ...)
+ *       "init" パイプライン専用の簡易ヘルパ。
  *
  * ▼ 使い方（例）
  *   const input = "  ほげ\r\nふが  ";
@@ -42,16 +46,14 @@
   }
 
   /**
-   * TextTransformer 側のユーティリティオブジェクトを取得
-   * - TextUtils（前回提案の textUtils.js パターン）
-   * - TextTransformer（ファイル名に合わせたグローバル名）
-   * のどちらかが存在する前提で、最初に見つかったものを採用する。
+   * TextUtils 側のユーティリティオブジェクトを取得
+   * - textUtils.js で root.TextUtils にエクスポートされている前提。
    */
   var TextLib = root.TextUtils || null;
 
   if (!TextLib) {
     // eslint-disable-next-line no-console
-    console.warn("TextUtils が見つかりません。TextUtils.js の中でグローバル名を確認してください。");
+    console.warn("TextUtils が見つかりません。textUtils.js の中でグローバル名を確認してください。");
     return;
   }
 
@@ -77,7 +79,7 @@
     typeof gap !== "function"
   ) {
     // eslint-disable-next-line no-console
-    console.warn("nl, hw, lead, clean, rmBlank, squeeze, trim, gap のいずれかが定義されていません。TextTransformer.js を確認してください。");
+    console.warn("nl, hw, lead, clean, rmBlank, squeeze, trim, gap のいずれかが定義されていません。textUtils.js を確認してください。");
     return;
   }
 
@@ -173,17 +175,78 @@
   // -------------------------------------------------------------------------
 
   /**
-   * window.TextFilterRegistry という名前で公開する。
+   * root.TextFilterRegistry という名前で公開する。
    * - 他のスクリプトから:
    *     TextFilterRegistry.apply("init", text).then(...);
    *   のように利用できる。
    */
   root.TextFilterRegistry = textFilterRegistry;
 
+  // -----------------------------------------------------------------------
+  // 複数パイプライン名を順に適用する汎用ヘルパ
+  // -----------------------------------------------------------------------
+
   /**
-   * 簡易ヘルパ:
-   * - よく使う "init" パイプラインだけを直接呼びたい場合に利用する。
-   *   runInitFilters("text").then((out) => { ... });
+   * 複数のフィルタリストを順番に適用する汎用ヘルパ関数
+   *
+   * - names で指定したリスト名を先頭から順に実行する。
+   * - 途中でエラーが発生した場合の挙動は options.stopOnError で制御する。
+   *   - true  (デフォルト): その時点で中断し、エラーをそのまま投げる。
+   *   - false: onError を呼んだあと続行し、current はエラー前の値を維持。
+   *
+   * @param {string[]} names 実行したいフィルタリスト名の配列（例: ["init","exp1","exp2"]）
+   * @param {string} str 入力文字列
+   * @param {any[]} [invokeArgs] 各ステップに共通で渡す追加引数
+   * @param {{ stopOnError?: boolean }} [options] 実行時オプション
+   * @returns {Promise<string>} 最終的な変換結果文字列
+   */
+  root.runTextChains = function (names, str, invokeArgs, options) {
+    if (!root.TextFilterRegistry || typeof root.TextFilterRegistry.apply !== "function") {
+      return Promise.resolve(str == null ? "" : String(str));
+    }
+
+    var reg = root.TextFilterRegistry;
+    var listNames = Array.isArray(names) ? names.slice() : [];
+    var opts = options || {};
+    var stopOnError = opts.stopOnError !== false; // デフォルト true
+
+    // 空配列なら何もせずそのまま返す
+    if (listNames.length === 0) {
+      return Promise.resolve(str == null ? "" : String(str));
+    }
+
+    var current = str == null ? "" : String(str);
+    var chain = Promise.resolve(current);
+
+    listNames.forEach(function (name) {
+      chain = chain.then(function (prev) {
+        current = prev == null ? "" : String(prev);
+        return reg
+          .apply(name, current, invokeArgs)
+          .then(function (out) {
+            return out == null ? "" : String(out);
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[runTextChains] フィルタリスト実行中にエラー:", {
+                name: name,
+                error: err
+              });
+            }
+            if (stopOnError) {
+              throw err;
+            }
+            // 続行する場合は current を維持して次へ
+            return current;
+          });
+      });
+    });
+
+    return chain;
+  };
+
+  /**
+   * "init" だけを実行したい場合のショートカット
    *
    * @param {string} str 入力文字列
    * @param {any[]} [invokeArgs] 追加引数（通常は不要）
@@ -192,4 +255,4 @@
   root.runInitFilters = function (str, invokeArgs) {
     return textFilterRegistry.apply("init", str, invokeArgs);
   };
-})(typeof window !== "undefined" ? window : this);
+})(globalThis);

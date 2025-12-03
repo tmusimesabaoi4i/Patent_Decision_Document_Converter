@@ -19,13 +19,13 @@
  *   - AppCore:
  *       DOM 操作・イベント制御・変換パイプライン実行を担当する本体クラス。
  *
- *   - App（グローバル公開オブジェクト）:
- *       App.init()
- *       App.registerMode(key, handlerOrList)
- *       App.registerModeList(key, list)
- *       App.listModes()
- *       App.bootstrapModeLists(source?)
- *       App.toHalfWidth(text)
+ *   - app（グローバルに公開されるファクトリ関数）:
+ *       const a = app(); a.run();
+ *       という形で App インスタンスを生成して起動する。
+ *       本ファイル末尾で
+ *         root.app = root.app();
+ *         root.app.run();
+ *       を実行しているため、通常は読み込みだけで自動起動される。
  *
  * ▼ モード（変換処理）の追加・変更方法
  *   - 基本パターン:
@@ -34,10 +34,11 @@
  *       3. app.js 側は ModeFunctionLists を自動登録するため、core は変更不要
  *
  *   - コード側から追加したい場合:
- *       App.registerModeList('myMode', [fn1, fn2, ...]);
+ *       const a = app(); // もしくは既存 app インスタンスを利用
+ *       a.registerModeList('myMode', [fn1, fn2, ...]);
  *       // または 単体ハンドラとして
- *       App.registerMode('myMode', (text) => text);
- *       App.registerMode('myMode', { process(text) { return text; } });
+ *       a.registerMode('myMode', (text) => text);
+ *       a.registerMode('myMode', { process(text) { return text; } });
  *
  * ▼ ハンドラの契約
  *   - シグネチャ:
@@ -46,16 +47,18 @@
  *       { process(text: string): string | Promise<string> }
  *   - AppCore 側で同期 / 非同期の両方に対応してシーケンシャルに実行します。
  *
- * ▼ 初期化
- *   - ブラウザ:
- *       DOMContentLoaded 後に App.init() が自動的に呼ばれます。
- *   - Node.js / テスト:
- *       DOM がない環境では App.init() はほぼ何もしません。
- *       toHalfWidth や ModeRegistry, ModeFunctionLists は単体でテスト可能です。
+ * ▼ 起動方法
+ *   - 本ファイル末尾で
+ *       root.app = root.app();
+ *       root.app.run();
+ *     を実行しているため、通常は <script src="js/app.js"></script>
+ *     を読み込むだけで自動起動します。
+ *   - 別のインスタンスを試したい場合などは、app ファクトリを直接呼び出して
+ *     使ってください。
  * ---------------------------------------------------------------------------
  */
 
-(function () {
+(function (root) {
   "use strict";
 
   // =========================================================
@@ -228,9 +231,8 @@
       this._timerId = null;
       /** @type {boolean} */
       this._prefersReducedMotion =
-        typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches === true;
+        typeof root.matchMedia === "function" &&
+        root.matchMedia("(prefers-reduced-motion: reduce)").matches === true;
     }
 
     /**
@@ -249,13 +251,13 @@
       this._rootEl.classList.add("show");
 
       if (this._timerId != null) {
-        window.clearTimeout(this._timerId);
+        root.clearTimeout(this._timerId);
         this._timerId = null;
       }
 
       const duration = this._prefersReducedMotion ? 1500 : 2000;
 
-      this._timerId = window.setTimeout(() => {
+      this._timerId = root.setTimeout(() => {
         this._rootEl.classList.remove("show");
         this._timerId = null;
       }, duration);
@@ -504,9 +506,9 @@
       }
 
       // Clipboard API を優先利用
-      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+      if (root.navigator && root.navigator.clipboard && typeof root.navigator.clipboard.writeText === "function") {
         try {
-          await navigator.clipboard.writeText(text);
+          await root.navigator.clipboard.writeText(text);
           this._toast.show("コピーしました。", "success");
           return;
         } catch (err) {
@@ -529,7 +531,7 @@
         console.warn("[AppCore] execCommand でのコピーに失敗:", err);
         this._toast.show("コピーに失敗しました。", "error");
       } finally {
-        const selection = window.getSelection();
+        const selection = root.getSelection && root.getSelection();
         if (selection && selection.removeAllRanges) {
           selection.removeAllRanges();
         }
@@ -538,51 +540,54 @@
   }
 
   // =========================================================
-  // App オブジェクト（外部公開 API）
+  // app ファクトリ（グローバル公開用）
   // =========================================================
 
-  const _modeRegistry = new ModeRegistry();
-
-  /** @type {AppCore|null} */
-  let _core = null;
-  /** @type {ToastManager|null} */
-  let _toastManager = null;
-  /** @type {boolean} */
-  let _appInitialized = false;
-
   /**
-   * グローバルに定義された ModeFunctionLists をレジストリへ取り込む
-   * - modeLists.js が window.ModeFunctionLists を定義していることを想定。
-   * @param {Record<string, any[]>} [source] 明示的に渡す場合のオブジェクト
+   * app ファクトリ関数
+   * ------------------------------------------------------------------------
+   * - 呼び出されるたびに新しい ModeRegistry / ToastManager / AppCore を構築し、
+   *   それらをまとめた「アプリインスタンスオブジェクト」を返す。
+   * - 戻り値オブジェクトは run / registerMode / registerModeList /
+   *   bootstrapModeLists / listModes / toHalfWidth を公開する。
    */
-  const _bootstrapModeListsFromGlobal = (source) => {
-    const src =
-      source ||
-      (typeof window !== "undefined" && window.ModeFunctionLists
-        ? window.ModeFunctionLists
-        : null);
+  function app() {
+    const modeRegistry = new ModeRegistry();
 
-    if (!src || typeof src !== "object") {
-      return;
+    /** @type {AppCore|null} */
+    let core = null;
+    /** @type {ToastManager|null} */
+    let toastManager = null;
+    /** @type {boolean} */
+    let initialized = false;
+
+    /**
+     * グローバルに定義された ModeFunctionLists をレジストリへ取り込む
+     * - modeLists.js が root.ModeFunctionLists を定義していることを想定。
+     * @param {Record<string, any[]>} [source] 明示的に渡す場合のオブジェクト
+     */
+    function bootstrapModeLists(source) {
+      const src =
+        source ||
+        (root.ModeFunctionLists && typeof root.ModeFunctionLists === "object"
+          ? root.ModeFunctionLists
+          : null);
+
+      if (!src || typeof src !== "object") {
+        return;
+      }
+
+      Object.entries(src).forEach(([modeKey, list]) => {
+        modeRegistry.registerModeList(modeKey, list);
+      });
     }
 
-    Object.entries(src).forEach(([modeKey, list]) => {
-      _modeRegistry.registerModeList(modeKey, list);
-    });
-  };
-
-  /**
-   * 公開 App オブジェクト
-   * - 他のスクリプトやテストから参照するためのシングルトン。
-   */
-  const App = {
     /**
-     * アプリケーションの初期化を行う
-     * - DOM が存在する環境（ブラウザ）でのみ画面初期化を実行する。
+     * DOM 初期化（1 回だけ実行）
      */
-    init() {
-      if (_appInitialized) return;
-      _appInitialized = true;
+    function initDOM() {
+      if (initialized) return;
+      initialized = true;
 
       if (typeof document === "undefined") {
         // テスト環境 / Node.js では画面初期化は行わない
@@ -590,7 +595,7 @@
       }
 
       // modeLists.js 由来の関数リストを取り込み
-      _bootstrapModeListsFromGlobal();
+      bootstrapModeLists();
 
       const toastRoot = /** @type {HTMLElement|null} */ (
         document.getElementById("toast")
@@ -599,79 +604,100 @@
         document.getElementById("toastMessage")
       );
 
-      _toastManager = new ToastManager(toastRoot, toastMsg);
-      _core = new AppCore(_modeRegistry, _toastManager);
-      _core.init();
-    },
-
-    /**
-     * モードを登録（単体ハンドラまたはハンドラ配列）
-     * @param {string} key モードキー
-     * @param {any} handlerOrList 関数 / オブジェクト / 配列
-     */
-    registerMode(key, handlerOrList) {
-      _modeRegistry.registerMode(key, handlerOrList);
-    },
-
-    /**
-     * モードを「ハンドラ配列」として登録する
-     * @param {string} key モードキー
-     * @param {any[]} list ハンドラ配列
-     */
-    registerModeList(key, list) {
-      _modeRegistry.registerModeList(key, list);
-    },
-
-    /**
-     * ModeFunctionLists など外部オブジェクトを 明示的にブートストラップする
-     * - テストコードなどから利用しやすいよう、引数としても渡せるようにする。
-     * @param {Record<string, any[]>} source モード → 関数配列 のマップ
-     */
-    bootstrapModeLists(source) {
-      _bootstrapModeListsFromGlobal(source);
-    },
-
-    /**
-     * 登録済みモードキー一覧を取得する（デバッグ / 確認用）
-     * @returns {string[]}
-     */
-    listModes() {
-      return _modeRegistry.listKeys();
-    },
-
-    /**
-     * 半角正規化関数を公開（ユニットテストや外部ユーティリティとして利用可能）
-     * @param {string} text
-     * @returns {string}
-     */
-    toHalfWidth(text) {
-      return toHalfWidth(text);
+      toastManager = new ToastManager(toastRoot, toastMsg);
+      core = new AppCore(modeRegistry, toastManager);
+      core.init();
     }
-  };
+
+    /**
+     * アプリ実行エントリポイント
+     * - DOMContentLoaded 前で呼ばれた場合は、DOMContentLoaded 後に initDOM を実行。
+     * - DOM が既に構築済みであれば即座に initDOM を実行。
+     */
+    function run() {
+      if (typeof document === "undefined") {
+        // DOM がない環境では何もしない
+        initialized = true;
+        return;
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => {
+          initDOM();
+        }, { once: true });
+      } else {
+        initDOM();
+      }
+    }
+
+    // ファクトリが返す公開 API
+    return {
+      /** DOM 初期化とイベントバインドを開始する */
+      run,
+
+      /** 直接 DOM 初期化を呼びたい場合のエイリアス */
+      init: initDOM,
+
+      /**
+       * モードを登録（単体ハンドラまたはハンドラ配列）
+       * @param {string} key
+       * @param {any} handlerOrList
+       * @returns {any} this
+       */
+      registerMode(key, handlerOrList) {
+        modeRegistry.registerMode(key, handlerOrList);
+        return this;
+      },
+
+      /**
+       * モードを「ハンドラ配列」として登録する
+       * @param {string} key
+       * @param {any[]} list
+       * @returns {any} this
+       */
+      registerModeList(key, list) {
+        modeRegistry.registerModeList(key, list);
+        return this;
+      },
+
+      /**
+       * ModeFunctionLists など外部オブジェクトを明示的にブートストラップする
+       * @param {Record<string, any[]>} source
+       * @returns {any} this
+       */
+      bootstrapModeLists(source) {
+        bootstrapModeLists(source);
+        return this;
+      },
+
+      /**
+       * 登録済みモードキー一覧を取得する（デバッグ / 確認用）
+       * @returns {string[]}
+       */
+      listModes() {
+        return modeRegistry.listKeys();
+      },
+
+      /**
+       * 半角正規化関数を公開（ユニットテストや外部ユーティリティとして利用可能）
+       * @param {string} text
+       * @returns {string}
+       */
+      toHalfWidth(text) {
+        return toHalfWidth(text);
+      }
+    };
+  }
 
   // =========================================================
-  // 自動初期化 & グローバル公開
+  // グローバル公開 & 自動起動
   // =========================================================
 
-  // DOMContentLoaded 後に自動で App.init() を呼ぶ（ブラウザ環境のみ）
-  if (typeof document !== "undefined") {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => {
-        App.init();
-      });
-    } else {
-      App.init();
-    }
-  }
+  // グローバルにファクトリ関数を公開
+  root.app = app;
 
-  // ブラウザ環境: window.App として公開
-  if (typeof window !== "undefined") {
-    window.App = App;
-  }
+  // 指定どおり、最後に app = app(); app.run() を実行
+  root.app = root.app();
+  root.app.run();
 
-  // CommonJS / Node.js 環境: モジュールとしてエクスポート
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = App;
-    module.exports.toHalfWidth = toHalfWidth;
-  }
-})();
+})(globalThis);

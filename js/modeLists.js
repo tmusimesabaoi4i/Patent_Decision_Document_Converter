@@ -30,17 +30,16 @@
  *       (text) => anotherStep(text, 42, true),
  *     ];
  *
- * ▼ App との連携
- *   - ブラウザ環境:
- *       1. index.html で app.js より先に modeLists.js を読み込む。
- *          <script src="js/modeLists.js"></script>
- *          <script src="js/app.js"></script>
- *       2. modeLists.js は global（window）に ModeFunctionLists を公開します。
- *       3. app.js 内の App.init() が起動時に ModeFunctionLists を自動登録します。
+ * ▼ App との連携（ローカル HTML 前提）
+ *   1. index.html で app.js より先に modeLists.js を読み込む。
+ *        <script src="js/modeLists.js"></script>
+ *        <script src="js/app.js"></script>
+ *   2. modeLists.js はグローバル（root）に ModeFunctionLists を公開する。
+ *   3. app.js 内の App.init() が起動時に ModeFunctionLists を自動登録する。
  *
- *   - テストや Node.js 環境:
- *       - CommonJS の module.exports として ModeFunctionLists を export しています。
- *       - 各関数の単体テストがしやすいように、関数はできる限り純粋関数として実装してください。
+ * ▼ 注意
+ *   - 本ファイルはローカルでブラウザから直接開いて使うことを前提とし、
+ *     モジュールシステム（CommonJS / ES Modules）は考慮していない。
  * --------------------------------------------------------------------------
  */
 
@@ -55,17 +54,48 @@
   const ModeFunctionLists = {
     /**
      * Office Action (non-final Office Action) 用変換パイプライン
-     * - 現状は何もしない（半角化のみ）。実際の処理に合わせて書き換えてください。
+     * - 現状は TextFilterRegistry 経由で "init" などのパイプラインを呼び出す例。
+     *   実際の処理に合わせて、names の中身や後続ステップを自由に変更してください。
      */
     officeAction: [
       /**
-       * 例: Office Action 共通の前処理
+       * Office Action 共通の前処理
+       * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
+       * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
+       * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
+       *   JSDoc 上は string として記述している。
+       *
        * @param {string} text 半角正規化済みテキスト
-       * @returns {string}
+       * @returns {string} 実際の戻り値は Promise<string>
        */
-      (text) => {
-        // TODO: Office Action 固有の整形処理をここに追加
-        return text;
+      function (text) {
+        // runTextChains が定義されていなければ何もせず text を返す
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        // -------------------------------------------------------------
+        // このモードで実行したいパイプライン名の一覧
+        //   - 将来 "exp1", "exp2", "exp3" ... を足したい場合は
+        //     下記配列に名前を追加するだけでよい。
+        // -------------------------------------------------------------
+        // 例: var names = ["init", "exp1", "exp2"];
+        var names = ["init"];
+
+        // -------------------------------------------------------------
+        // 複数パイプラインを順に実行
+        //   - stopOnError: true により、途中でエラーが発生したら即中断。
+        //   - catch 内で元の text を返すことで、UI が壊れないようにする。
+        // -------------------------------------------------------------
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, { stopOnError: true })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[officeAction] runTextChains 実行中にエラー:", err);
+            }
+            // エラー時は元の text を返して UI を壊さない
+            return text;
+          });
       }
     ],
 
@@ -77,7 +107,7 @@
        * @param {string} text 半角正規化済みテキスト
        * @returns {string}
        */
-      (text) => {
+      function (text) {
         // TODO: Final Office Action 固有の整形処理をここに追加
         return text;
       }
@@ -91,7 +121,7 @@
        * @param {string} text 半角正規化済みテキスト
        * @returns {string}
        */
-      (text) => {
+      function (text) {
         // TODO: Amendment Refused 固有の整形処理をここに追加
         return text;
       }
@@ -105,7 +135,7 @@
        * @param {string} text 半角正規化済みテキスト
        * @returns {string}
        */
-      (text) => {
+      function (text) {
         // TODO: Pre-examination Report 固有の整形処理をここに追加
         return text;
       }
@@ -119,20 +149,23 @@
        * @param {string} text 半角正規化済みテキスト
        * @returns {string}
        */
-      (text) => {
+      function (text) {
         // TODO: PCT 固有の整形処理をここに追加
         return text;
       }
     ]
   };
 
-  // ブラウザ環境: グローバルに公開
-  if (typeof root !== "undefined") {
-    root.ModeFunctionLists = ModeFunctionLists;
-  }
+  // ------------------------------------------------------------------------
+  // グローバル公開（ローカル HTML 前提）
+  // ------------------------------------------------------------------------
 
-  // CommonJS / Node.js 環境: モジュールとしてエクスポート
-  if (typeof module !== "undefined" && module.exports) {
-    module.exports = ModeFunctionLists;
-  }
-})(typeof window !== "undefined" ? window : globalThis);
+  /**
+   * - 本ファイルは root（globalThis）に ModeFunctionLists をぶら下げるだけ。
+   * - ほかのスクリプトからは:
+   *     ModeFunctionLists.officeAction
+   *   のようにアクセスして利用する。
+   */
+  root.ModeFunctionLists = ModeFunctionLists;
+
+})(globalThis);

@@ -204,7 +204,14 @@ body {
 }
 
 .panel-modes {
+  /* Safari 用 プレフィックス */
+  -webkit-backdrop-filter: blur(10px);
+
+  /* 標準 */
   backdrop-filter: blur(10px);
+
+  /* さらに、backdrop-filter 非対応ブラウザ用のフォールバック背景もあると安心 */
+  background-color: rgba(255, 255, 255, 0.9);
 }
 
 .panel-heading {

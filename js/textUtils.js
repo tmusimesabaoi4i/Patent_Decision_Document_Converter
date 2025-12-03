@@ -12,15 +12,7 @@
  * ---------------------------------------------------------------------------
  */
 
-(function (root, factory) {
-  if (typeof module === "object" && module.exports) {
-    // CommonJS 環境（Node.js 等）
-    module.exports = factory();
-  } else {
-    // ブラウザ環境
-    root.TextUtils = factory();
-  }
-})(typeof window !== "undefined" ? window : globalThis, function () {
+(function (root) {
   "use strict";
 
   // ========================================================================
@@ -269,18 +261,22 @@
   }
 
   // ========================================================================
-  // エクスポート
+  // グローバルへの公開
   // ========================================================================
 
-  return {
-    // 個別フィルタ
-    nl,
-    hw,
-    lead,
-    clean,
-    rmBlank,
-    squeeze,
-    trim,
-    gap,
+  /**
+   * ブラウザ環境（ローカル HTML）専用想定:
+   * - root は globalThis（≒ window）であり、TextUtils を直にぶら下げる。
+   * - 他のスクリプトからは TextUtils.nl(...) などとして利用できる。
+   */
+  root.TextUtils = {
+    nl: nl,
+    hw: hw,
+    lead: lead,
+    clean: clean,
+    rmBlank: rmBlank,
+    squeeze: squeeze,
+    trim: trim,
+    gap: gap
   };
-});
+})(globalThis);
