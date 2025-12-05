@@ -49,37 +49,79 @@
    * TextUtils 側のユーティリティオブジェクトを取得
    * - textUtils.js で root.TextUtils にエクスポートされている前提。
    */
-  var TextLib = root.TextUtils || null;
+  var TextLib_Init = root.textUtilsInit || null;
 
-  if (!TextLib) {
+  if (!TextLib_Init) {
     // eslint-disable-next-line no-console
     console.warn("TextUtils が見つかりません。textUtils.js の中でグローバル名を確認してください。");
     return;
   }
 
   // 必要なフィルタ関数を取り出す
-  var nl = TextLib.nl;
-  var hw = TextLib.hw;
-  var lead = TextLib.lead;
-  var clean = TextLib.clean;
-  var rmBlank = TextLib.rmBlank;
-  var squeeze = TextLib.squeeze;
-  var trim = TextLib.trim;
-  var gap = TextLib.gap;
+  var nl = TextLib_Init.nl;
+  var hw = TextLib_Init.hw;
+  var lead = TextLib_Init.lead;
+  var clean = TextLib_Init.clean;
+  var rmBlank = TextLib_Init.rmBlank;
+  var squeeze = TextLib_Init.squeeze;
+  var trim = TextLib_Init.trim;
+  var gap = TextLib_Init.gap;
 
   // どれか 1 つでも欠けている場合は警告を出して終了
   if (
     typeof nl !== "function" ||
     typeof hw !== "function" ||
-    typeof lead !== "function" ||
     typeof clean !== "function" ||
     typeof rmBlank !== "function" ||
     typeof squeeze !== "function" ||
     typeof trim !== "function" ||
-    typeof gap !== "function"
+    typeof gap !== "function" ||
+    typeof lead !== "function"
   ) {
     // eslint-disable-next-line no-console
     console.warn("nl, hw, lead, clean, rmBlank, squeeze, trim, gap のいずれかが定義されていません。textUtils.js を確認してください。");
+    return;
+  }
+
+  /**
+   * textUtilsMain 側のユーティリティオブジェクトを取得
+   * - textUtilsMain.js で root.textUtilsMain にエクスポートされている前提。
+   */
+  var TextLib_Main = root.textUtilsMain || null;
+
+  if (!TextLib_Main) {
+    // eslint-disable-next-line no-console
+    console.warn("textUtilsMain が見つかりません。textUtilsMain.js の中でグローバル名を確認してください。");
+    return;
+  }
+
+  // 必要なフィルタ関数を取り出す
+  var padHead = TextLib_Main.padHead;
+  var trimHead = TextLib_Main.trimHead;
+  var fwHead = TextLib_Main.fwHead;
+  var alphaCase = TextLib_Main.alphaCase;
+  var fwNumLaw = TextLib_Main.fwNumLaw;
+  var fwRefLaw = TextLib_Main.fwRefLaw;
+  var tightLines = TextLib_Main.tightLines;
+  var tightClaims = TextLib_Main.tightClaims;
+  var tightNote = TextLib_Main.tightNote;
+  var tightBelowBullet = TextLib_Main.tightBelowBullet;
+
+  // どれか 1 つでも欠けている場合は警告を出して終了
+  if (
+    typeof padHead !== "function" ||
+    typeof trimHead !== "function" ||
+    typeof fwHead !== "function" ||
+    typeof alphaCase !== "function" ||
+    typeof fwNumLaw !== "function" ||
+    typeof fwRefLaw !== "function" ||
+    typeof tightLines !== "function" ||
+    typeof tightClaims !== "function" ||
+    typeof tightNote !== "function" ||
+    typeof tightBelowBullet !== "function"
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn("padHead, trimHead, fwHead, alphaCase, fwNumLaw, fwRefLaw, tightLines, tightClaims, tightNote, tightBelowBullet のいずれかが定義されていません。textUtilsMain.js を確認してください。");
     return;
   }
 
@@ -152,23 +194,37 @@
    * 実行順:
    *   1. nl      : 改行コードの正規化（CRLF/CR を LF に統一）
    *   2. hw      : 全角→半角への正規化 (NFKC + 補正)
-   *   3. lead    : 先頭に改行を 1 つだけ付与
-   *   4. clean   : 制御文字・特殊文字の除去／空白置換
-   *   5. rmBlank : 空行（空白のみ行を含む）の削除
-   *   6. squeeze : 連続する半角スペースの圧縮
-   *   7. trim    : 全体の前後空白の削除
-   *   8. gap     : 行間の空行を「ちょうど 1 行」に正規化
+   *   3. clean   : 制御文字・特殊文字の除去／空白置換
+   *   4. rmBlank : 空行（空白のみ行を含む）の削除
+   *   5. squeeze : 連続する半角スペースの圧縮
+   *   6. trim    : 全体の前後空白の削除
+   *   7. gap     : 行間の空行を「ちょうど 1 行」に正規化
+   *   8. lead    : 先頭に改行を 1 つだけ付与
    */
   textFilterRegistry.register("init", [
     nl,
     hw,
-    lead,
     clean,
     rmBlank,
     squeeze,
     trim,
-    gap
+    gap,
+    lead
   ]);
+
+  textFilterRegistry.register("main", [
+    padHead,
+    trimHead,
+    tightBelowBullet, // 下の改行を詰める(箇条書き系は全角になると反応しないので、)
+    fwHead,
+    fwNumLaw,
+    fwRefLaw,
+    alphaCase, // 表とか図の英字を大文字にしない
+    // tightLines,
+    tightClaims,
+    tightNote
+  ]);
+
 
   // -------------------------------------------------------------------------
   // グローバル公開

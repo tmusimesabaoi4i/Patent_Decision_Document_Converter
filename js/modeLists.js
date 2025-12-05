@@ -52,12 +52,7 @@
    * - 値:  (text: string) => string | Promise<string> の配列
    */
   const ModeFunctionLists = {
-    /**
-     * Office Action (non-final Office Action) 用変換パイプライン
-     * - 現状は TextFilterRegistry 経由で "init" などのパイプラインを呼び出す例。
-     *   実際の処理に合わせて、names の中身や後続ステップを自由に変更してください。
-     */
-    officeAction: [
+    _officeAction: [
       /**
        * Office Action 共通の前処理
        * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
@@ -80,7 +75,8 @@
         //     下記配列に名前を追加するだけでよい。
         // -------------------------------------------------------------
         // 例: var names = ["init", "exp1", "exp2"];
-        var names = ["init"];
+        var names = ["init","main"];
+        // var names = ["init"];
 
         // -------------------------------------------------------------
         // 複数パイプラインを順に実行
@@ -98,6 +94,12 @@
           });
       }
     ],
+    get officeAction() {
+      return this._officeAction;
+    },
+    set officeAction(value) {
+      this._officeAction = value;
+    },
 
     /**
      * Final Office Action (Final Rejection) 用変換パイプライン

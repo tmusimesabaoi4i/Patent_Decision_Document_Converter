@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>text変換ツール仕様（完全版・スクリプト付き）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial, sans-serif;
+      line-height: 1.6;
+      color: #222;
+      background: #fff;
+      margin: 0;
+      padding: 1.2rem;
+    }
+    main { max-width: 980px; margin: 0 auto; }
+    header h1 { margin: 0 0 0.4rem; font-size: 1.4rem; }
+    header p { margin: 0 0 1rem; color: #555; }
+    section { margin: 1rem 0; padding: 0.6rem 0; border-bottom: 1px solid #eee; }
+    h2 { margin: 0 0 0.4rem; font-size: 1.05rem; display:flex; align-items:center; gap:0.6rem; }
+    .range { color: #555; font-size: 0.92rem; background: #f6f8fa; padding: 0.45rem 0.6rem; border-radius: 6px; margin: 0.4rem 0; display: block; }
+    ol.numbered { counter-reset: item; margin: 0 0 0.8rem 1.2rem; padding-left: 0; }
+    ol.numbered > li { display: block; margin: 0.35rem 0; padding-left: 2.2rem; position: relative; list-style: none; }
+    ol.numbered > li:before { counter-increment: item; content: counters(item, ".") " "; position: absolute; left: 0; top: 0; color: #0b5fff; font-weight: 600; }
+    ol.numbered li ol.numbered { counter-reset: item; margin-top: 0.4rem; }
+    .def { background:#f3f7ff; padding:0.6rem; border-radius:6px; color:#223; margin:0.6rem 0; }
+    .example { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; background:#fafafa; padding:0.45rem 0.6rem; border-radius:6px; display:block; margin-top:0.4rem; color:#111; white-space:pre-wrap; }
+    .note { color:#666; font-size:0.95rem; margin-top:0.4rem; }
+    .controls { display:flex; gap:0.6rem; margin: 1rem 0 0.6rem; align-items:center; flex-wrap:wrap; }
+    button { background:#0b5fff; color:#fff; border:0; padding:0.5rem 0.8rem; border-radius:6px; cursor:pointer; font-weight:600; }
+    button.ghost { background:transparent; color:#0b5fff; border:1px solid #0b5fff; padding:0.45rem 0.7rem; }
+    button:active { transform: translateY(1px); }
+    textarea#plain { width:100%; min-height:260px; margin-top:0.6rem; padding:0.8rem; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size:0.95rem; line-height:1.5; white-space:pre-wrap; }
+    .toggle { background:#eef5ff; color:#0b5fff; padding:0.18rem 0.5rem; border-radius:6px; font-size:0.85rem; border:0; cursor:pointer; }
+    .collapsible { cursor:pointer; font-size:0.9rem; color:#0b5fff; background:transparent; border:0; padding:0; }
+    .hidden { display:none; }
+    .small { font-size:0.9rem; color:#666; }
+    @media (prefers-color-scheme: dark) {
+      body { color: #e6eef6; background: #071018; }
+      .range { color: #9fb0c8; background: #071821; }
+      .def { background:#071827; color:#cfe6ff; }
+      .example { background:#071821; color:#dbeafe; }
+      button { background:#2b8bff; }
+      button.ghost { color:#9fb0ff; border-color:#2b8bff; }
+      .toggle { background:#07243a; color:#9fb0ff; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>text変換ツール仕様（完全版・スクリプト付き）</h1>
+    <p>「箇条書き」「ドット」定義を含む完全仕様。下のコントロールで仕様のプレーンテキスト化、コピー、折りたたみができます。</p>
+  </header>
+
+  <section id="definitions">
+    <h2>定義 <button class="collapsible" data-target="def-body">折りたたむ/展開</button></h2>
+    <div id="def-body">
+      <div class="def">
+        <strong>箇条書き（階層の例）</strong>
+        <p class="note">箇条書きは複数階層で表現されることがあり、当仕様では以下の順序を想定します（横書きの例）。処理では「箇条書き_見出し」「箇条書き_ドット」などのマークを識別して条件処理を行います。</p>
+        <div class="example">
+第１　　1　　（1）　　ア　　（ア）
+第２　　2　　（2）　　イ　　（イ）
+第３　　3　　（3）　　ウ　　（ウ）
+        </div>
+        <p class="note">上位から下位へ：章／番号／小番号／カナ／括弧付きカナ。実装では各階層の先頭マークを検出して処理を適用します。</p>
+      </div>
+
+      <div class="def">
+        <strong>ドット（定義）</strong>
+        <p class="note">「ドット」は本文中の箇条書きで使われる点記号を指します。具体例：</p>
+        <div class="example">・　や　●　など</div>
+        <p class="note">仕様内で「箇条書き_ドット」は上記のような記号を先頭に持つ行を指し、条件付き全角化や空白削除、改行詰めなどの対象になります。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="jpdoc">
+    <h2>共通処理 <span class="small">["init"]</span></h2>
+    <ol class="numbered">
+      <li>改行統一 <span class="small">[nl]</span></li>
+      <li>半角化（英字・数字・記号） <span class="small">[hw]</span></li>
+      <li>特殊文字削除 <span class="small">[clean]</span></li>
+      <li>空白行削除 <span class="small">[rmBlank]</span></li>
+      <li>空白圧縮（2以上→1つ） <span class="small">[squeeze]</span></li>
+      <li>空白削除（文頭・文末） <span class="small">[trim]</span></li>
+      <li>改行圧縮（1行空け） <span class="small">[gap]</span></li>
+      <li>改行挿入（先頭） <span class="small">[lead]</span></li>
+    </ol>
+  </section>
+
+  <section id="article">
+    <h2>@条文部分</h2>
+    <p class="range">範囲: 「記 (引用文献等については引用文献等一覧参照)」または「記」より上</p>
+    <ol class="numbered">
+      <li>全角化</li>
+    </ol>
+  </section>
+
+  <section id="body">
+    <h2>@本文（修正版）</h2>
+    <p class="range">範囲: 「記」より下、「------------------------------------」より上 または「記 (引用文献等については引用文献等一覧参照)」より下、「&lt;引用文献等一覧&gt;」より上</p>
+
+    <ol class="numbered">
+      <li>空白挿入（先頭）</li>
+
+      <li>空白削除（条件付き）
+        <ol class="numbered">
+          <li>先頭文字が【空白＋箇条書き_ドット】 → 空白削除</li>
+          <li>先頭文字が【空白＋箇条書き_見出し】 → 空白削除</li>
+          <li>先頭文字が【空白＋&lt;】 → 空白削除</li>
+        </ol>
+      </li>
+
+      <li>全角化（条件付き）
+        <ol class="numbered">
+          <li>先頭文字が【箇条書き_見出し】 → マーク全角化</li>
+          <li>先頭文字が【箇条書き_ドット】 → 行全体全角化</li>
+        </ol>
+      </li>
+
+      <li>文字置換（英字の大小処理）</li>
+
+      <li>番号全角化
+        <ol class="numbered">
+          <li>条文番号</li>
+          <li>第◯節／第◯頁（数字＋アルファベット、区切り「、」「-」「及び」「又は」「.」を許可）</li>
+          <li>「引用文献」「文献」「相違点」「主張」「請求項」後続数字（区切り「、」「-」「及び」「又は」を許可）</li>
+        </ol>
+      </li>
+
+      <li>引用箇所全角化
+        <ol class="numbered">
+          <li>【特に段落】で始まる数字（区切り「、」「-」「及び」「又は」「[」「]」を許可）</li>
+          <li>【図】で始まる数字＋英字（区切り「、」「-」「及び」「又は」を許可）</li>
+          <li>【特表】でない【表】で始まる数字＋英字（区切り「、」「-」「及び」「又は」を許可）</li>
+          <li>【式】で始まる数字＋英字（区切り「、」「-」「及び」「又は」「(」「)」を許可）</li>
+        </ol>
+      </li>
+
+      <li>改行圧縮
+        <ol class="numbered">
+          <li>主張部分（『』内の空白行削除）</li>
+          <li>付記／補正の示唆部分（改行を圧縮）</li>
+          <li>先頭文字が【箇条書き_ドット】 → 直下行削除で詰める</li>
+          <li>先頭文字が【箇条書き_見出し】 → 直下行削除で詰める</li>
+        </ol>
+      </li>
+    </ol>
+  </section>
+
+  <section id="references">
+    <h2>@引用文献</h2>
+    <p class="range">範囲: 「&lt;引用文献等一覧&gt;」より下、「------------------------------------」より上</p>
+    <ol class="numbered">
+      <li>番号全角化（先頭数字＋.）</li>
+      <li>引用箇所全角化
+        <ol class="numbered">
+          <li>段落で始まる数字（区切り「、」「-」「及び」「又は」「[]」を許可）</li>
+          <li>図で始まる数字＋英字（区切り「、」「-」「及び」「又は」を許可）</li>
+          <li>特表でない表で始まる数字（区切り「、」「-」「及び」「又は」を許可）</li>
+          <li>式で始まる数字＋英字（区切り「、」「-」「及び」「又は」「()」を許可）</li>
+        </ol>
+      </li>
+      <li>改行圧縮</li>
+    </ol>
+  </section>
+
+  <section id="classification">
+    <h2>@分類、参考文献</h2>
+    <p class="range">範囲: 「------------------------------------」より下、「&lt;補正をする際の注意&gt;」より上</p>
+    <ol class="numbered">
+      <li>分類（書式整形＋空白挿入）
+        <ol class="numbered">
+          <li>CPC形式</li>
+          <li>3GPP形式</li>
+          <li>IEEE形式</li>
+          <li>※空白位置・数を指定可能</li>
+        </ol>
+      </li>
+      <li>参考文献（書式整形＋空白挿入）</li>
+      <li>改行圧縮</li>
+    </ol>
+  </section>
+
+  <section id="caution">
+    <h2>@注意</h2>
+    <p class="range">範囲: 「&lt;補正をする際の注意&gt;」より下、「審査第四部伝送システム(PA5J) 飯星 陽平」より上</p>
+    <ol class="numbered">
+      <li>空白挿入（先頭）</li>
+      <li>全角化</li>
+      <li>空白削除（条件付き）
+        <ol class="numbered">
+          <li>先頭文字が【箇条書き_ドット】 → 削除</li>
+          <li>先頭文字が【箇条書き_見出し】 → 削除</li>
+          <li>先頭文字が【&lt;】 → 削除</li>
+        </ol>
+      </li>
+      <li>改行圧縮</li>
+    </ol>
+  </section>
+
+  <section id="names">
+    <h2>@名前</h2>
+    <p class="range">範囲: 「審査第四部伝送システム(PA5J) 飯星 陽平(いいほし ようへい)」より下</p>
+    <ol class="numbered">
+      <li>改行圧縮</li>
+    </ol>
+  </section>
+
+  <section id="postprocess">
+    <h2>@後処理</h2>
+    <ol class="numbered">
+      <li>文字置換（起案用）</li>
+      <li>文字置換（固定大小）</li>
+      <li>記号全角化（( ) [ ] &lt; &gt; 、 。）</li>
+      <li>改行削除（先頭1文字目）</li>
+    </ol>
+  </section>
+
+  <div class="controls" aria-hidden="false">
+    <button id="generateBtn">Plain text を生成</button>
+    <button id="copyBtn" class="ghost">クリップボードにコピー</button>
+    <button id="selectBtn" class="ghost">Plain を選択</button>
+    <button id="toggleDefs" class="toggle">定義を折りたたむ</button>
+  </div>
+
+  <label for="plain" class="small">Plain text（選択・コピー用、自動生成）</label>
+  <textarea id="plain" readonly></textarea>
+
+  <script>
+    // --- ユーティリティ ---
+    const qs = s => document.querySelector(s);
+    const qsa = s => Array.from(document.querySelectorAll(s));
+
+    // --- 折りたたみ機能 ---
+    document.querySelectorAll('.collapsible').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.target;
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('hidden');
+        btn.textContent = el.classList.contains('hidden') ? '展開' : '折りたたむ/展開';
+      });
+    });
+
+    // toggle definitions
+    const toggleDefsBtn = qs('#toggleDefs');
+    toggleDefsBtn.addEventListener('click', () => {
+      const defBody = qs('#def-body');
+      defBody.classList.toggle('hidden');
+      toggleDefsBtn.textContent = defBody.classList.contains('hidden') ? '定義を展開' : '定義を折りたたむ';
+    });
+
+    // --- Plain text 生成ロジック ---
+    function buildPlainText() {
+      const out = [];
+      function walkList(ol, prefix = '') {
+        const items = Array.from(ol.children).filter(n => n.tagName === 'LI');
+        items.forEach((li, idx) => {
+          const num = prefix ? prefix + (idx + 1) : String(idx + 1);
+          // capture immediate text content before nested ol
+          let text = '';
+          for (const node of li.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+              text += node.textContent;
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== 'OL') {
+              text += node.textContent;
+            } else if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'OL') {
+              break;
+            }
+          }
+          text = text.replace(/\s+/g, ' ').trim();
+          if (text) out.push(num + ' ' + text);
+          const nested = li.querySelector(':scope > ol.numbered');
+          if (nested) walkList(nested, num + '.');
+        });
+      }
+
+      // sections in order with readable titles
+      const sections = [
+        {title: '共通処理 [init]', el: qs('#jpdoc ol.numbered'), range: qs('#jpdoc .range')},
+        {title: '@条文部分', el: qs('#article ol.numbered'), range: qs('#article .range')},
+        {title: '@本文', el: qs('#body ol.numbered'), range: qs('#body .range')},
+        {title: '@引用文献', el: qs('#references ol.numbered'), range: qs('#references .range')},
+        {title: '@分類、参考文献', el: qs('#classification ol.numbered'), range: qs('#classification .range')},
+        {title: '@注意', el: qs('#caution ol.numbered'), range: qs('#caution .range')},
+        {title: '@名前', el: qs('#names ol.numbered'), range: qs('#names .range')},
+        {title: '@後処理', el: qs('#postprocess ol.numbered'), range: qs('#postprocess .range')}
+      ];
+
+      sections.forEach(sec => {
+        out.push('### ' + sec.title);
+        if (sec.range) out.push('範囲: ' + sec.range.textContent.trim());
+        if (sec.el) {
+          walkList(sec.el);
+        } else {
+          out.push('(該当する処理なし)');
+        }
+        out.push(''); // blank line
+      });
+
+      return out.join('\n');
+    }
+
+    // --- ボタン動作 ---
+    const plainArea = qs('#plain');
+    qs('#generateBtn').addEventListener('click', () => {
+      plainArea.value = buildPlainText();
+      plainArea.scrollTop = 0;
+    });
+
+    qs('#copyBtn').addEventListener('click', async () => {
+      const txt = plainArea.value || buildPlainText();
+      try {
+        await navigator.clipboard.writeText(txt);
+        const orig = qs('#copyBtn').textContent;
+        qs('#copyBtn').textContent = 'コピーしました';
+        setTimeout(() => qs('#copyBtn').textContent = orig, 1200);
+      } catch (e) {
+        plainArea.focus();
+        plainArea.select();
+        alert('クリップボードにコピーできませんでした。テキストを選択して手動でコピーしてください。');
+      }
+    });
+
+    qs('#selectBtn').addEventListener('click', () => {
+      plainArea.focus();
+      plainArea.select();
+    });
+
+    // 自動生成（ページ読み込み時）
+    document.addEventListener('DOMContentLoaded', () => {
+      plainArea.value = buildPlainText();
+    });
+
+    // キーボードショートカット: Ctrl/Cmd+Shift+G で生成、Ctrl/Cmd+Shift+C でコピー
+    document.addEventListener('keydown', (e) => {
+      const mod = navigator.platform.includes('Mac') ? e.metaKey : e.ctrlKey;
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        plainArea.value = buildPlainText();
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        qs('#copyBtn').click();
+      }
+    });
+
+    // アクセシビリティ: テキストエリアのフォーカス時に選択を容易に
+    plainArea.addEventListener('focus', () => plainArea.select());
+  </script>
+</main>
+</body>
+</html>
