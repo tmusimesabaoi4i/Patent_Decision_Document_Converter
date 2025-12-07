@@ -125,6 +125,71 @@
     return;
   }
 
+  /**
+   * stripBlankLines 側のユーティリティオブジェクトを取得
+   * - stripBlankLines.js で root.stripBlankLines にエクスポートされている前提。
+   */
+  var TextLib_BlankLines = root.stripBlankLines || null;
+
+  if (!TextLib_BlankLines) {
+    // eslint-disable-next-line no-console
+    console.warn("stripBlankLines が見つかりません。stripBlankLines.js の中でグローバル名を確認してください。");
+    return;
+  }
+
+  // 必要なフィルタ関数を取り出す
+  var stripBlankLinesInCorrectionNote = TextLib_BlankLines.stripBlankLinesInCorrectionNote;
+  var stripBlankLinesInSearchResult = TextLib_BlankLines.stripBlankLinesInSearchResult;
+  var stripBlankLinesInCitation = TextLib_BlankLines.stripBlankLinesInCitation;
+  var stripBlankLinesInAppendix = TextLib_BlankLines.stripBlankLinesInAppendix;
+  var stripBlankLinesInPriority = TextLib_BlankLines.stripBlankLinesInPriority;
+  var stripBlankLinesInAmendmentSuggestion = TextLib_BlankLines.stripBlankLinesInAmendmentSuggestion;
+
+  // どれか 1 つでも欠けている場合は警告を出して終了
+  if (
+    typeof stripBlankLinesInCorrectionNote !== "function" ||
+    typeof stripBlankLinesInSearchResult !== "function" ||
+    typeof stripBlankLinesInCitation !== "function" ||
+    typeof stripBlankLinesInAppendix !== "function" ||
+    typeof stripBlankLinesInPriority !== "function" ||
+    typeof stripBlankLinesInAmendmentSuggestion !== "function"
+  ) {
+    // eslint-disable-next-line no-console
+    console.warn("stripBlankLinesInCorrectionNote, stripBlankLinesInSearchResult, stripBlankLinesInCitation, stripBlankLinesInAppendix, stripBlankLinesInPriority, stripBlankLinesInAmendmentSuggestion のいずれかが定義されていません。stripBlankLines.js を確認してください。");
+    return;
+  }
+
+  /**
+   * textUtilsConvertForDoc 側のユーティリティオブジェクトを取得
+   * - textUtilsConvertForDoc.js で root.textUtilsConvertForDoc にエクスポートされている前提。
+   */
+  var TextLib_ConvertForDoc = root.textUtilsConvertForDoc || null;
+
+  if (!TextLib_ConvertForDoc) {
+    // eslint-disable-next-line no-console
+    console.warn("textUtilsConvertForDoc が見つかりません。stripBlankLines.js の中でグローバル名を確認してください。");
+    return;
+  }
+
+  /**
+   * textUtilsConvertForCau 側のユーティリティオブジェクトを取得
+   * - textUtilsConvertForCau.js で root.textUtilsConvertForCau にエクスポートされている前提。
+   */
+  var TextLib_ConvertForCau = root.textUtilsConvertForCau || null;
+
+  if (!TextLib_ConvertForCau) {
+    // eslint-disable-next-line no-console
+    console.warn("textUtilsConvertForCau が見つかりません。stripBlankLines.js の中でグローバル名を確認してください。");
+    return;
+  }
+
+  // 必要なフィルタ関数を取り出す
+  var convertForDoc = TextLib_ConvertForDoc.convertForDoc;
+  // 必要なフィルタ関数を取り出す
+  var convertForCau = TextLib_ConvertForCau.convertForCau;
+  var convertForOther = TextLib_ConvertForCau.convertForOther;
+  var applyFlexibleMap = TextLib_ConvertForCau.applyFlexibleMap;
+
   // -------------------------------------------------------------------------
   // FilterRegistry インスタンスの生成
   // -------------------------------------------------------------------------
@@ -225,6 +290,21 @@
     tightNote
   ]);
 
+  textFilterRegistry.register("stripBlankLines", [
+    stripBlankLinesInCorrectionNote,
+    stripBlankLinesInSearchResult,
+    stripBlankLinesInCitation,
+    stripBlankLinesInAppendix,
+    stripBlankLinesInPriority,
+    stripBlankLinesInAmendmentSuggestion
+  ]);
+
+  textFilterRegistry.register("convertEnd", [
+    convertForDoc,
+    convertForCau,
+    convertForOther,
+    applyFlexibleMap,
+  ]);
 
   // -------------------------------------------------------------------------
   // グローバル公開

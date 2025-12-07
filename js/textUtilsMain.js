@@ -196,7 +196,8 @@
    * - 実際の運用に合わせて調整可能。
    * @type {RegExp}
    */
-  var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|[A-Za-z]+(?=\s)|第[0-9]{1,2}(?=\s)))/;
+  // var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|[A-Za-z]+(?=\s)|第[0-9]{1,2}(?=\s)))/;
+  var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|第[0-9]{1,2}(?=\s)))/;
 
   // ========================================================================
   // 1. 空白挿入（先頭）
@@ -353,7 +354,7 @@
       var isHeadBullet = false;
       var isDashAndAngle = false;
 
-      var dotRe_marksClass = DOT_MARKS.map(escapeForRegExp).join("");
+      var dotRe_marksClass = DOT_MARKS.filter(ch => ch !== "●").map(escapeForRegExp).join("");
       var dotRe = new RegExp("^[ \\u3000]*([" + dotRe_marksClass + "])");
 
       var dAaRe_marksClass = DASH_AND_ANGLE_MARKS.map(escapeForRegExp).join("");
@@ -552,7 +553,7 @@
     });
     
     var KEYWORD_RE =
-      /(特に段落|図|式)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)\s及び又は]+)/g;
+      /(段落|図|式)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)\s及び又は]+)/g;
 
     s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
       tail = removeWS(tail);
@@ -655,6 +656,50 @@
   // 8. 主張部分（『』内の空白行削除）
   // ========================================================================
 
+
+  /**
+   * 指定したマーカーに挟まれた範囲の空白行を削除する。
+   *
+   * - 開始マーカーと終了マーカーに挟まれたテキストを対象とし、
+   *   その内部の空白行（空文字や空白のみの行）を削除する。
+   * - マーカーは文字列または文字列配列で指定可能。
+   * - 対象範囲外のテキストは変更しない。
+   * - 入れ子構造や複数出現には非対応の簡易実装。
+   *
+   * @param {string} str 入力文字列
+   * @param {string|string[]} startMarker 開始マーカー
+   * @param {string|string[]} endMarker 終了マーカー
+   * @returns {string} 空白行が削除された文字列
+   */
+  function stripBlankLinesBetween(str, startMarker, endMarker) {
+    if (str == null || str === "") return "";
+    const s = String(str);
+
+    const starts = Array.isArray(startMarker) ? startMarker : [startMarker];
+    const ends = Array.isArray(endMarker) ? endMarker : [endMarker];
+
+    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    let result = s;
+    for (const start of starts) {
+      for (const end of ends) {
+        const pattern = new RegExp(
+          `(${escapeRegExp(start)})([\\s\\S]*?)(${escapeRegExp(end)})`,
+          'g'
+        );
+
+        result = result.replace(pattern, (_all, pre, inner, post) => {
+          const innerLines = splitLines(inner);
+          const outLines = innerLines.filter(line => !isBlankLine(line));
+          return pre + joinLines(outLines).trim() + post;
+        });
+      }
+    }
+
+    return result;
+  }
+
+
   /**
    * 『』内（主張部分）に存在する空白行を削除する
    *
@@ -670,21 +715,12 @@
     if (str == null || str === "") return "";
     const s = String(str);
 
-    return s.replace(/(『|「)([\s\S]*?)(』|」)/g, function (_all, pre, inner, rini, _akk) {
-      var innerLines = splitLines(inner);
-      var outLines = [];
+    const startMarkers = "『";
+    const endMarkers = "』";
 
-      for (const line of innerLines) {
-          if (isBlankLine(line)) {
-            // 空行はすべて削除
-            continue;
-          }
-        outLines.push(line);
-      }
-
-      return pre + joinLines(outLines).trim() + rini;
-    });
+    return stripBlankLinesBetween(s, startMarkers, endMarkers);
   }
+
 
   // ========================================================================
   // 9. 付記／補正の示唆部分（ブロック内空白行削除：簡易版）

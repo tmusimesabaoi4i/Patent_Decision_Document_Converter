@@ -52,9 +52,12 @@
    * - 値:  (text: string) => string | Promise<string> の配列
    */
   const ModeFunctionLists = {
+    /**
+     * Office Action 用変換パイプライン
+     */
     _officeAction: [
       /**
-       * Office Action 共通の前処理
+       * Office 系文書共通の前処理
        * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
        * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
        * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
@@ -75,7 +78,8 @@
         //     下記配列に名前を追加するだけでよい。
         // -------------------------------------------------------------
         // 例: var names = ["init", "exp1", "exp2"];
-        var names = ["init","main"];
+        var names = ["init", "main", "stripBlankLines", "convertEnd"];
+        // var names = ["init", "main"];
         // var names = ["init"];
 
         // -------------------------------------------------------------
@@ -84,10 +88,15 @@
         //   - catch 内で元の text を返すことで、UI が壊れないようにする。
         // -------------------------------------------------------------
         return root
-          .runTextChains(names, text, /* invokeArgs */ undefined, { stopOnError: true })
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
           .catch(function (err) {
             if (typeof console !== "undefined" && console.error) {
-              console.error("[officeAction] runTextChains 実行中にエラー:", err);
+              console.error(
+                "[officeAction] runTextChains 実行中にエラー:",
+                err
+              );
             }
             // エラー時は元の text を返して UI を壊さない
             return text;
@@ -104,58 +113,171 @@
     /**
      * Final Office Action (Final Rejection) 用変換パイプライン
      */
-    finalOfficeAction: [
+    _finalOfficeAction: [
       /**
+       * Office 系文書共通の前処理
+       * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
+       * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
+       * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
+       *   JSDoc 上は string として記述している。
+       *
        * @param {string} text 半角正規化済みテキスト
-       * @returns {string}
+       * @returns {string} 実際の戻り値は Promise<string>
        */
       function (text) {
-        // TODO: Final Office Action 固有の整形処理をここに追加
-        return text;
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        var names = ["init", "main", "stripBlankLines", "convertEnd"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error(
+                "[finalOfficeAction] runTextChains 実行中にエラー:",
+                err
+              );
+            }
+            return text;
+          });
       }
     ],
+    get finalOfficeAction() {
+      return this._finalOfficeAction;
+    },
+    set finalOfficeAction(value) {
+      this._finalOfficeAction = value;
+    },
 
     /**
      * Amendment Refused / Amendment Not Entered 用変換パイプライン
      */
-    amendmentRefused: [
+    _amendmentRefused: [
       /**
+       * Office 系文書共通の前処理
+       * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
+       * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
+       * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
+       *   JSDoc 上は string として記述している。
+       *
        * @param {string} text 半角正規化済みテキスト
-       * @returns {string}
+       * @returns {string} 実際の戻り値は Promise<string>
        */
       function (text) {
-        // TODO: Amendment Refused 固有の整形処理をここに追加
-        return text;
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        var names = ["init", "main", "stripBlankLines", "convertEnd"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error(
+                "[amendmentRefused] runTextChains 実行中にエラー:",
+                err
+              );
+            }
+            return text;
+          });
       }
     ],
+    get amendmentRefused() {
+      return this._amendmentRefused;
+    },
+    set amendmentRefused(value) {
+      this._amendmentRefused = value;
+    },
 
     /**
      * Pre-examination Report / Report to Director 用変換パイプライン
      */
-    preExaminationReport: [
+    _preExaminationReport: [
       /**
+       * Office 系文書共通の前処理
+       * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
+       * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
+       * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
+       *   JSDoc 上は string として記述している。
+       *
        * @param {string} text 半角正規化済みテキスト
-       * @returns {string}
+       * @returns {string} 実際の戻り値は Promise<string>
        */
       function (text) {
-        // TODO: Pre-examination Report 固有の整形処理をここに追加
-        return text;
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        var names = ["init", "main", "stripBlankLines", "convertEnd"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error(
+                "[preExaminationReport] runTextChains 実行中にエラー:",
+                err
+              );
+            }
+            return text;
+          });
       }
     ],
+    get preExaminationReport() {
+      return this._preExaminationReport;
+    },
+    set preExaminationReport(value) {
+      this._preExaminationReport = value;
+    },
 
     /**
      * PCT (Patent Cooperation Treaty / International application) 用変換パイプライン
      */
-    pct: [
+    _pct: [
       /**
+       * Office 系文書共通の前処理
+       * - TextFilterRegistry に登録された複数パイプラインを順に実行する。
+       * - runTextChains を経由することで、後からパイプライン名を追加・変更しやすくする。
+       * - 実際の戻り値は Promise<string> だが、呼び出し側が非同期対応している前提で
+       *   JSDoc 上は string として記述している。
+       *
        * @param {string} text 半角正規化済みテキスト
-       * @returns {string}
+       * @returns {string} 実際の戻り値は Promise<string>
        */
       function (text) {
-        // TODO: PCT 固有の整形処理をここに追加
-        return text;
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        var names = ["init", "main"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[pct] runTextChains 実行中にエラー:", err);
+            }
+            return text;
+          });
       }
-    ]
+    ],
+    get pct() {
+      return this._pct;
+    },
+    set pct(value) {
+      this._pct = value;
+    },
   };
 
   // ------------------------------------------------------------------------
