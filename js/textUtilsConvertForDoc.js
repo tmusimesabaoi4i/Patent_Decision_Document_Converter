@@ -103,6 +103,47 @@
     // 全角英数字を半角に正規化
     s = toFwAlnumStr(s);
 
+      // n/m - x/y をまとめて拾う
+      var pattern = /(\d+)(\/)(\d+)(\s*-\s*)(\d+)(\/)(\d+)/g;
+
+      s = String(s).replace(
+        pattern,
+        function (_all, d1, slash1, d2, dashPart, d3, slash2, d4) {
+          // 1個目の数字用パディング
+          function pad_1st(numStr) {
+            // 例: 4桁右寄せ（必要に応じて桁数変更）
+            return ("    " + numStr).slice(-4);
+          }
+
+          // 2個目の数字用パディング
+          function pad_2nd(numStr) {
+            return ("    " + numStr).slice(-4);
+          }
+
+          // 3個目の数字用パディング
+          function pad_3rd(numStr) {
+            return ("    " + numStr).slice(-4);
+          }
+
+          // 4個目の数字用パディング
+          function pad_4th(numStr) {
+            return ("    " + numStr).slice(-4);
+          }
+
+          // 数字部分だけ整形して再構成
+          return (
+            pad_1st(d1.trim()) +
+            slash1 +               // "/" はそのまま
+            pad_2nd(d2.trim()) +
+            dashPart +             // " - " 含む部分（元の空白を維持）
+            pad_3rd(d3.trim()) +
+            slash2 +
+            pad_4th(d4.trim())
+          );
+        }
+      );
+
+
     // デバッグしたいときだけコメントアウトを外す
     // console.log("[convertEachLine]", s);
 
@@ -110,7 +151,7 @@
     // 固定文言に対する完全一致マッチ
     // ------------------------------
     if (s === "<先行技術文献調査結果の記録>") {
-      return "\n　　　　　　　　　　<先行技術文献調査結果の記録>";
+      return "　　　　　　　　　　<先行技術文献調査結果の記録>";
     }
 
     if (s === "DB名 IEEE 802.11") {
@@ -137,14 +178,14 @@
     var m = s.match(/^・調査した分野[\s\u3000]+IPC[\s\u3000]+(.+)$/);
     if (m) {
       // 「・調査した分野  IPC  (末尾)」というスペース固定フォーマットに整形
-      return "\n・調査した分野  IPC  " + m[1];
+      return "・調査した分野  IPC  " + m[1];
     }
 
     // 例: 「・先行技術文献　特開...」など
     m = s.match(/^・先行技術文献[\s\u3000]+(.+)$/);
     if (m) {
       // ラベルと本文の間のスペースを固定
-      return "\n・先行技術文献  " + m[1];
+      return "・先行技術文献  " + m[1];
     }
 
     // IPC 行: "H04B..." / "H04W..." など
@@ -198,6 +239,38 @@
     return "　　　　　　　　" + s;
   }
 
+  function convertEachLineForFamily(str) {
+    var raw = str == null ? "" : String(str);
+    var s = raw.trim(); // 行頭・行末の空白を削除
+
+    // 完全な空行はそのまま空行として返す
+    if (s === "") {
+      return "";
+    }
+
+    // 全角英数字を半角に正規化
+    s = toFwAlnumStr(s);
+
+    // デバッグしたいときだけコメントアウトを外す
+    // console.log("[convertEachLine]", s);
+
+    // ------------------------------
+    // 固定文言に対する完全一致マッチ
+    // ------------------------------
+    var m = s.match(/^([0-9].*)$/);
+    if (m) {
+      // 所定インデント＋内容
+      return s; // 全角スペース 10個分＋α
+    }
+
+    // ------------------------------
+    // どのパターンにも一致しなかった行のデフォルト処理
+    // ------------------------------
+    // ベースとなるインデント（全角スペースの塊）を前置した上で、
+    // 行内容（trim & 全角英数字→半角 済み）をそのまま連結する。
+    return "　　　" + s;
+  }
+
   /**
    * 特定の「先行技術文献調査結果」のブロック部分だけを抜き出し、
    * その内部を行単位で整形する関数。
@@ -245,6 +318,26 @@
     });
   }
 
+  function convertForFamily(text) {
+    var pattern =
+      /(<ファミリー文献情報>\r?\n)([\s\S]*?)(\r?\n[ \t\u3000]*<補正をする際の注意>)/g;
+
+    return String(text).replace(pattern, function (_all, pre, inner, post) {
+      // inner（ハイフン行の次の行〜メッセージ直前）を行ごとに分解
+      var innerLines = splitLines(inner);
+
+      // 各行をルールベースで整形
+      var outLines = innerLines.map(function (line) {
+        return convertEachLineForFamily(line);
+      });
+
+      // ハイフン行 / 整形後テキスト / 固定メッセージ の順で再構成
+      // pre には末尾の改行、post には先頭の改行を含めているので、
+      // ここでは追加の "\n" は挟まない。
+      return pre + joinLines(outLines) + post;
+    });
+  }
+
   // ----------------------------------------
   // グローバルへのエクスポート
   // ----------------------------------------
@@ -257,5 +350,6 @@
   root.textUtilsConvertForDoc = {
     // 先行技術文献調査ブロック内部の一括変換
     convertForDoc: convertForDoc,
+    convertForFamily: convertForFamily,
   };
 })(globalThis);

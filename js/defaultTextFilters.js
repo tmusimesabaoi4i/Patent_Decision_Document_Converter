@@ -185,6 +185,7 @@
 
   // 必要なフィルタ関数を取り出す
   var convertForDoc = TextLib_ConvertForDoc.convertForDoc;
+  var convertForFamily = TextLib_ConvertForDoc.convertForFamily;
   // 必要なフィルタ関数を取り出す
   var convertForCau = TextLib_ConvertForCau.convertForCau;
   var convertForOther = TextLib_ConvertForCau.convertForOther;
@@ -301,6 +302,7 @@
 
   textFilterRegistry.register("convertEnd", [
     convertForDoc,
+    convertForFamily,
     convertForCau,
     convertForOther,
     applyFlexibleMap,

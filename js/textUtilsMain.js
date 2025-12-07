@@ -505,11 +505,16 @@
     });
     
     // 2-3. 「第◯条」形式を処理
+    s = s.replace(/PCT第([0-9]+)条/g, (_, j) => {
+      j = removeWS(j);
+      return `ＰＣＴ第${toFwNumStr(j)}条`;
+    });
+    
     s = s.replace(/第([0-9]+)条/g, (_, j) => {
       j = removeWS(j);
       return `第${toFwNumStr(j)}条`;
     });
-    
+
     // 3. 「特許法施行規則」
     s = s.replace(/特許法施行規則様式第([0-9]+)備考([0-9、]+)/g, (_, j, n) => {
       j = removeWS(j); n = removeWS(n);
@@ -517,9 +522,14 @@
     });
     
     // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
-    s = s.replace(/第([0-9A-Za-z\.\s]+)(節|頁)/g, function (_, j, suffix) {
+    s = s.replace(/第([0-9A-Za-z\.\s]+)(節|頁|章)/g, function (_, j, suffix) {
       j = removeWS(j);
       return "第" + toFwAlnumStr(j) + suffix;
+    });
+    // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
+    s = s.replace(/JPGL第([0-9A-Za-z\.\s]+)(部)/g, function (_, j, suffix) {
+      j = removeWS(j);
+      return "ＪＰＧＬ第" + toFwAlnumStr(j) + suffix;
     });
 
     // 3) 日付を全数字化
