@@ -11,7 +11,10 @@
   <title>Patent Decision Document Converter</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <link rel="stylesheet" href="css/styles.css" />
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/layout.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/modal.css" />
 </head>
 <body>
   <div class="app">
@@ -185,7 +188,7 @@
   
   <script src="filterRegistry/filterRegistry.js"></script>
   <script src="TextTransformer/TextTransformer.js"></script>
-  
+
   <script src="js/textUtilsInit.js"></script>
   <script src="js/textUtilsMain.js"></script>
   <script src="js/stripBlankLines.js"></script>
@@ -193,6 +196,10 @@
   <script src="js/textUtilsConvertForCau.js"></script>
   <script src="js/defaultTextFilters.js"></script>
   <script src="js/modeLists.js"></script>
+
+  <!-- ★ 日本語タイポ検出＋モーダル表示ロジック -->
+  <script src="js/jaTypoChecker.js"></script>
+
   <script src="js/app.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,92 @@
+/* ==========================================================================
+   Patent Decision Document Converter — Base (tokens & reset)
+   ========================================================================== */
+
+:root {
+  /* Brand / semantic colors */
+  --brand-500: #0b6ef6;
+  --brand-400: #1e90ff;
+  --brand-300: #60a5ff;
+  --brand-700: #0b4ba8;
+
+  --bg-soft: #eaf4ff;
+  --bg-body: #f3f6fb;
+  --surface: #ffffff;
+
+  --border-subtle: #d0e2ff;
+  --border-strong: #99b7f0;
+
+  --text-main: #0f172a;
+  --text-muted: #6b7280;
+  --text-soft: #9ca3af;
+
+  --accent-success: #16a34a;
+  --accent-danger: #dc2626;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Spacing scale */
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-10: 32px;
+
+  /* Shadows */
+  --shadow-soft: 0 8px 30px rgba(11, 78, 160, 0.08);
+  --shadow-elevated: 0 18px 40px rgba(11, 78, 160, 0.14);
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /* Others */
+  --transition-fast: 0.15s ease-out;
+}
+
+/* Global reset-ish */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  background: radial-gradient(circle at top, #e3f2fd 0, var(--bg-body) 45%, #e0ebff 100%);
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+/* Reduced motion preference */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

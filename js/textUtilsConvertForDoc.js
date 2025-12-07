@@ -103,45 +103,45 @@
     // 全角英数字を半角に正規化
     s = toFwAlnumStr(s);
 
-      // n/m - x/y をまとめて拾う
-      var pattern = /(\d+)(\/)(\d+)(\s*-\s*)(\d+)(\/)(\d+)/g;
+    // n/m - x/y をまとめて拾う（/ と - の前後に空白があってもマッチさせる）
+    var pattern = /\s*(\d+)\s*(\/)\s*(\d+)(\s*-\s*)(\d+)\s*(\/)\s*(\d+)/g;
 
-      s = String(s).replace(
-        pattern,
-        function (_all, d1, slash1, d2, dashPart, d3, slash2, d4) {
-          // 1個目の数字用パディング
-          function pad_1st(numStr) {
-            // 例: 4桁右寄せ（必要に応じて桁数変更）
-            return ("    " + numStr).slice(-4);
-          }
-
-          // 2個目の数字用パディング
-          function pad_2nd(numStr) {
-            return ("    " + numStr).slice(-4);
-          }
-
-          // 3個目の数字用パディング
-          function pad_3rd(numStr) {
-            return ("    " + numStr).slice(-4);
-          }
-
-          // 4個目の数字用パディング
-          function pad_4th(numStr) {
-            return ("    " + numStr).slice(-4);
-          }
-
-          // 数字部分だけ整形して再構成
-          return (
-            pad_1st(d1.trim()) +
-            slash1 +               // "/" はそのまま
-            pad_2nd(d2.trim()) +
-            dashPart +             // " - " 含む部分（元の空白を維持）
-            pad_3rd(d3.trim()) +
-            slash2 +
-            pad_4th(d4.trim())
-          );
+    s = String(s).replace(
+      pattern,
+      function (_all, d1, slash1, d2, dashPart, d3, slash2, d4) {
+        // 1個目の数字用パディング
+        function pad_1st(numStr) {
+          // 例: 4桁右寄せ（必要に応じて桁数変更）
+          return ("   " + numStr).slice(-3);
         }
-      );
+
+        // 2個目の数字用パディング
+        function pad_2nd(numStr) {
+          return ("   " + numStr).slice(-3);
+        }
+
+        // 3個目の数字用パディング
+        function pad_3rd(numStr) {
+          return ("   " + numStr).slice(-3);
+        }
+
+        // 4個目の数字用パディング
+        function pad_4th(numStr) {
+          return ("   " + numStr).slice(-3);
+        }
+
+        // 数字部分だけ整形して再構成
+        return (
+          pad_1st(d1.trim()) +
+          slash1.trim() +               // "/" はそのまま
+          pad_2nd(d2.trim()) +
+          dashPart.trim() +             // " - " 含む部分（元の空白を維持）
+          pad_3rd(d3.trim()) +
+          slash2.trim() +
+          pad_4th(d4.trim())
+        );
+      }
+    );
 
 
     // デバッグしたいときだけコメントアウトを外す
@@ -272,6 +272,95 @@
   }
 
   /**
+   * 「　記 (引用文献等については引用文献等一覧参照)」より上の部分だけ、
+   * 数字・英字・記号（ASCII !〜~）を全角に変換する。
+   *
+   * - マーカー行より下のテキストは一切変更しない。
+   * - マーカーが存在しない場合は元の文字列をそのまま返す。
+   *
+   * @param {string} text 変換対象の全文テキスト
+   * @returns {string} 変換後テキスト
+   */
+  function convertBeforeKirokuLineToFullWidth(text) {
+    var str = String(text);
+
+    // マーカー行：
+    // 　記 (引用文献等については引用文献等一覧参照)
+    //
+    // - 先頭の「　」は全角スペース（U+3000）
+    // - () は半角の括弧なので正規表現ではエスケープする
+    //
+    // ([\s\S]*?)    … マーカー行 “より上” を最短一致でキャプチャ
+    // (\r?\n? … )   … 改行+マーカー行そのものを第2グループに保持
+    var pattern = /([\s\S]*?)(\r?\n?　記 \(引用文献等については引用文献等一覧参照\))/;
+
+    var match = str.match(pattern);
+    if (!match) {
+      // マーカーが見つからなければ何もせずそのまま返す
+      return str;
+    }
+
+    var before = match[1]; // マーカーより上のすべて
+    var marker = match[2]; // 改行＋「　記 (引用文献等については引用文献等一覧参照)」
+
+    // 1) before 部分だけ ASCII 記号／数字／英字を全角に変換
+    var convertedBefore = toZenkakuAscii(before);
+
+    // 2) 変換済み before ＋ マーカー行 ＋ それ以外の残りを連結
+    return convertedBefore + str.slice(before.length);
+  }
+
+  function convertBeforeKirokuOnlyLineToFullWidth(text) {
+    var str = String(text);
+
+    // マーカー行：
+    // 　記 (引用文献等については引用文献等一覧参照)
+    //
+    // - 先頭の「　」は全角スペース（U+3000）
+    // - () は半角の括弧なので正規表現ではエスケープする
+    //
+    // ([\s\S]*?)    … マーカー行 “より上” を最短一致でキャプチャ
+    // (\r?\n? … )   … 改行+マーカー行そのものを第2グループに保持
+    var pattern = /([\s\S]*?)(\r?\n?　記)/;
+
+
+    var match = str.match(pattern);
+    if (!match) {
+      // マーカーが見つからなければ何もせずそのまま返す
+      return str;
+    }
+
+    var before = match[1]; // マーカーより上のすべて
+    var marker = match[2]; // 改行＋「　記 (引用文献等については引用文献等一覧参照)」
+
+    // 1) before 部分だけ ASCII 記号／数字／英字を全角に変換
+    var convertedBefore = toZenkakuAscii(before);
+
+    // 2) 変換済み before ＋ マーカー行 ＋ それ以外の残りを連結
+    return convertedBefore + str.slice(before.length);
+  }
+
+/**
+ * ASCII の記号／数字／英字 (!〜~) を全角に変換するユーティリティ。
+ * - 半角スペース(0x20) はそのまま残す。
+ *
+ * @param {string} s
+ * @returns {string}
+ */
+function toZenkakuAscii(s) {
+  return String(s).replace(/[!-~]/g, function (ch) {
+    var code = ch.charCodeAt(0);
+
+    // 半角スペース(0x20)は対象外（ここにはそもそも来ないが念のため）
+    if (code === 0x20) {
+      return ch;
+    }
+
+    // ASCII 0x21〜0x7E を全角へ（+0xFEE0）
+    return String.fromCharCode(code + 0xFEE0);
+  });
+}
+  /**
    * 特定の「先行技術文献調査結果」のブロック部分だけを抜き出し、
    * その内部を行単位で整形する関数。
    *
@@ -299,10 +388,15 @@
    * @returns {string} 内部だけ行整形済みのテキスト
    */
   function convertForDoc(text) {
+    var str = String(text);
+    
+    str = convertBeforeKirokuLineToFullWidth(str);
+    str = convertBeforeKirokuOnlyLineToFullWidth(str);
+
     var pattern =
       /(-{20,}\r?\n)([\s\S]*?)(\r?\n[ \t\u3000]*この先行技術文献調査結果の記録は、拒絶理由を構成するものではありません。)/g;
 
-    return String(text).replace(pattern, function (_all, pre, inner, post) {
+    return String(str).replace(pattern, function (_all, pre, inner, post) {
       // inner（ハイフン行の次の行〜メッセージ直前）を行ごとに分解
       var innerLines = splitLines(inner);
 
@@ -314,27 +408,35 @@
       // ハイフン行 / 整形後テキスト / 固定メッセージ の順で再構成
       // pre には末尾の改行、post には先頭の改行を含めているので、
       // ここでは追加の "\n" は挟まない。
-      return pre + joinLines(outLines) + "\n" + post;
+      return pre + joinLines(outLines) + post;
     });
   }
 
   function convertForFamily(text) {
+    // ※注意：
+    //   実際の本文が「＜ファミリー文献情報＞」（全角カギ）なのか
+    //   「<ファミリー文献情報>」（半角カギ）なのかでパターンを変えてください。
+    //
+    //   ここでは例として「＜ファミリー文献情報＞」（全角）を想定しています。
     var pattern =
-      /(<ファミリー文献情報>\r?\n)([\s\S]*?)(\r?\n[ \t\u3000]*<補正をする際の注意>)/g;
+      /(<ファミリー文献情報>\n?)([\s\S]*?)([ 　]*この拒絶理由通知の内容に関するお問合せ又は面接のご希望がありましたら、次の連絡先までご連絡ください。補正案等の送付を希望される際は、その旨を事前にご連絡ください。)/;
 
-    return String(text).replace(pattern, function (_all, pre, inner, post) {
-      // inner（ハイフン行の次の行〜メッセージ直前）を行ごとに分解
-      var innerLines = splitLines(inner);
+    return String(text).replace(pattern, function (_all, header, inner, footer) {
+      // ----------------------------------------------------
+      // inner（間の部分）だけを行単位で変換する
+      // ----------------------------------------------------
 
-      // 各行をルールベースで整形
-      var outLines = innerLines.map(function (line) {
+      // 中間部分を行ごとに分解
+      var lines = splitLines(inner);
+
+      // 各行を既存のルールベース関数で整形
+      var outLines = lines.map(function (line) {
         return convertEachLineForFamily(line);
       });
 
-      // ハイフン行 / 整形後テキスト / 固定メッセージ の順で再構成
-      // pre には末尾の改行、post には先頭の改行を含めているので、
-      // ここでは追加の "\n" は挟まない。
-      return pre + joinLines(outLines) + post;
+      // 先頭の見出し行（header）と末尾の問い合わせ文（footer）はそのまま残し、
+      // 間だけ整形済みテキストに置き換えて返す
+      return "\n" + header + joinLines(outLines) + "\n" + footer;
     });
   }
 

@@ -1,0 +1,116 @@
+/* ==========================================================================
+   Typo warning modal (日本語タイポ検出用モーダル)
+   - jaTypoChecker.js が動的に DOM を生成する前提
+   ========================================================================== */
+
+.typo-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none; /* .typo-modal--open 時に表示 */
+}
+
+.typo-modal--open {
+  display: block;
+}
+
+/* タイポ警告モーダルの背面ぼかし */
+.typo-modal__backdrop {
+  position: absolute;
+  inset: 0;
+
+  /* ぼかし非対応ブラウザ用の半透明背景（フォールバック） */
+  background: rgba(15, 23, 42, 0.45);
+
+  /* Safari 用プレフィックス */
+  -webkit-backdrop-filter: blur(4px);
+
+  /* 標準プロパティ */
+  backdrop-filter: blur(4px);
+}
+
+.typo-modal__dialog {
+  position: relative;
+  max-width: 560px;
+  margin: 8vh auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  background: #ffffff;
+  box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.typo-modal__header {
+  margin-bottom: var(--space-4);
+}
+
+.typo-modal__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent-danger);
+}
+
+.typo-modal__body {
+  font-size: 0.85rem;
+  color: var(--text-main);
+  margin-bottom: var(--space-4);
+}
+
+.typo-modal__lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+}
+
+.typo-modal__list {
+  margin: 0;
+  padding-left: 1.1em;
+  list-style: disc;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.typo-modal__item {
+  margin-bottom: var(--space-3);
+}
+
+.typo-modal__item-main {
+  margin: 0 0 2px;
+}
+
+.typo-modal__item-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.typo-modal__badge {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: rgba(254, 242, 242, 0.95);
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  color: #b91c1c;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.typo-modal__excerpt {
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.typo-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 小さい画面向けレイアウト調整 */
+
+@media (max-width: 520px) {
+  .typo-modal__dialog {
+    margin-inline: var(--space-4);
+    padding: var(--space-5);
+  }
+}

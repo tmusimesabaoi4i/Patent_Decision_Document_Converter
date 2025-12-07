@@ -455,6 +455,23 @@
       if (!this._inputEl || !this._outputEl) return;
 
       const raw = this._inputEl.value || "";
+
+      // ------------------------------------------------------
+      // 日本語タイポチェック
+      // ------------------------------------------------------
+      // - jaTypoChecker.js 側で root.JaTypoChecker が定義されている前提。
+      // - タイポが検出された場合は警告モーダルを表示し、
+      //   いったん変換処理を中断する（ユーザーが修正後に再度 Convert する想定）。
+      if (root.JaTypoChecker && typeof root.JaTypoChecker.check === "function") {
+        const typoResult = root.JaTypoChecker.check(raw);
+        if (typoResult && typoResult.hasError) {
+          if (typeof root.JaTypoChecker.openModal === "function") {
+            root.JaTypoChecker.openModal(typoResult);
+          }
+          return;
+        }
+      }
+
       const normalized = toHalfWidth(raw);
 
       const modeKey = this._getSelectedModeKey();
