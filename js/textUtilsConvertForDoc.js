@@ -272,11 +272,34 @@
   }
 
   /**
-   * 「　記 (引用文献等については引用文献等一覧参照)」より上の部分だけ、
-   * 数字・英字・記号（ASCII !〜~）を全角に変換する。
+   * 「記」行（「　記」「　記（引用文献等については引用文献等一覧参照）」など）
+   * より上の部分だけを対象として、
    *
-   * - マーカー行より下のテキストは一切変更しない。
-   * - マーカーが存在しない場合は元の文字列をそのまま返す。
+   *  1. ASCII の数字・英字・記号 (!〜~) を全角に変換する
+   *  2. 行頭が「数字＋．」で始まる行について、
+   *     「番号行の直後にちょうど 1 行だけ空行を挿入」する
+   *     （元々の空行はまとめて 1 行に潰す）
+   *
+   * - 「記」行より下のテキストは一切変更しない。
+   * - 「記」行が存在しない場合は元の文字列をそのまま返す。
+   *
+   * 例）
+   *   １．（）      ２．あ
+   *   ３．Ａ        ４．Ｂ
+   *
+   *         記      （引用文献等については引用文献等一覧参照）
+   *
+   * ↓ 変換後：
+   *
+   *   １．
+   *
+   *   ２．
+   *
+   *   ３．
+   *
+   *   ４．
+   *
+   *         記      （引用文献等については引用文献等一覧参照）
    *
    * @param {string} text 変換対象の全文テキスト
    * @returns {string} 変換後テキスト
@@ -284,82 +307,140 @@
   function convertBeforeKirokuLineToFullWidth(text) {
     var str = String(text);
 
-    // マーカー行：
-    // 　記 (引用文献等については引用文献等一覧参照)
+    // ------------------------------------------------------------
+    // 「記」行を境に、pre（上側） / tail（「記」行以降）に分割する
+    // ------------------------------------------------------------
     //
-    // - 先頭の「　」は全角スペース（U+3000）
-    // - () は半角の括弧なので正規表現ではエスケープする
+    // - 行全体が
+    //     [スペース*] 記 [スペース*] （引用文献等については引用文献等一覧参照）? [スペース*]
+    //   だけで構成されている行のみを「記」行とみなす。
     //
-    // ([\s\S]*?)    … マーカー行 “より上” を最短一致でキャプチャ
-    // (\r?\n? … )   … 改行+マーカー行そのものを第2グループに保持
-    var pattern = /([\s\S]*?)(\r?\n?　記 \(引用文献等については引用文献等一覧参照\))/;
+    //   つまり：
+    //     「　　　　　記」
+    //     「　　　　　記　　　（引用文献等については引用文献等一覧参照）」
+    //   はマッチするが、
+    //     「…下記の刊行物…」
+    //     「…に記載された…」
+    //   はマッチしない。
+    //
+    // - pre  : 「記」行より上の全文
+    // - tail : 「記」行そのもの＋それ以降すべて
+    //
+    var splitByKiLinePattern =
+      /([\s\S]*?)(^[ 　]*記[ 　]*(?:[（(]引用文献等については引用文献等一覧参照[）)])?[ 　]*$[\s\S]*)/m;
 
-    var match = str.match(pattern);
-    if (!match) {
-      // マーカーが見つからなければ何もせずそのまま返す
-      return str;
-    }
+    // 「記」行が存在しない場合、replace は何も置き換えずそのまま str を返す
+    return str.replace(
+      splitByKiLinePattern,
+      function (__all, pre, tail) {
+        // --------------------------------------------------------
+        // 1) 「記」より上の部分だけ ASCII → 全角 変換
+        // --------------------------------------------------------
+        var convertedBefore = toZenkakuAscii(pre);
 
-    var before = match[1]; // マーカーより上のすべて
-    var marker = match[2]; // 改行＋「　記 (引用文献等については引用文献等一覧参照)」
+        // --------------------------------------------------------
+        // 2) 「数字＋．」で始まる行の直後を 1 行だけ空行に正規化
+        // --------------------------------------------------------
 
-    // 1) before 部分だけ ASCII 記号／数字／英字を全角に変換
-    var convertedBefore = toZenkakuAscii(before);
+        // 改行コード種別の推定（必要に応じて簡易判定）
+        var newline = "\n";
+        if (/\r\n/.test(str)) {
+          newline = "\r\n";
+        } else if (/\r/.test(str)) {
+          newline = "\r";
+        }
 
-    // 2) 変換済み before ＋ マーカー行 ＋ それ以外の残りを連結
-    return convertedBefore + str.slice(before.length);
+        convertedBefore = normalizeNumberedHeadingsWithBlankLine(
+          convertedBefore,
+          newline
+        );
+
+        // pre 側だけを加工し、tail（「記」行以降）は一切変更しない
+        return convertedBefore + "\n" + tail;
+      }
+    );
   }
 
-  function convertBeforeKirokuOnlyLineToFullWidth(text) {
-    var str = String(text);
 
-    // マーカー行：
-    // 　記 (引用文献等については引用文献等一覧参照)
-    //
-    // - 先頭の「　」は全角スペース（U+3000）
-    // - () は半角の括弧なので正規表現ではエスケープする
-    //
-    // ([\s\S]*?)    … マーカー行 “より上” を最短一致でキャプチャ
-    // (\r?\n? … )   … 改行+マーカー行そのものを第2グループに保持
-    var pattern = /([\s\S]*?)(\r?\n?　記)/;
+  /**
+   * 「数字＋．」で始まる行を見つけた場合に、
+   * その行の直後にちょうど 1 行だけ空行を入れるヘルパ。
+   *
+   * - もともと複数の空行がある場合はまとめて 1 行に潰す。
+   * - 末尾行が番号行の場合も、最後に 1 行空行を追加する。
+   *
+   * 対象例：
+   *   １．あ       → 「１．」だけ残し、次行に空行を 1 行挿入
+   *   2.BBB        → 「2.」だけ残し、次行に空行を 1 行挿入
+   *
+   * @param {string} block 変換対象ブロック（「記」より上の部分）
+   * @param {string} newline 改行コード（"\n" / "\r\n" など）
+   * @returns {string}
+   */
+  function normalizeNumberedHeadingsWithBlankLine(block, newline) {
+    var lines = String(block).split("\n");
+    var resultLines = [];
+    var i = 0;
 
+    while (i < lines.length) {
+      var line = lines[i];
 
-    var match = str.match(pattern);
-    if (!match) {
-      // マーカーが見つからなければ何もせずそのまま返す
-      return str;
+      // 行頭のパターン：
+      //   [空白] + 数字(全角／半角) + ドット(全角／半角) + その後ろは任意
+      //
+      // 例：
+      //   "１．あ"  → prefix=""; nums="１"; dot="．"; rest="あ"
+      //   "  3. TEST" → prefix="  "; nums="3"; dot="."; rest=" TEST"
+      var m = line.match(/^([ 　]*)([0-9０-９]+)([\.．])(\s*)(.*)$/);
+
+      if (!m) {
+        // 番号行でなければそのまま出力
+        resultLines.push(line);
+        i++;
+        continue;
+      }
+
+      var prefix = m[1];
+      var nums = m[2];
+      var dot = m[3];
+      var after = m[5]; // 今回は「数字＋．」以降のテキストは破棄する想定
+
+      // 1行目: 「数字＋．」だけの行にする（後続テキストは削除）
+      resultLines.push(prefix + nums + dot + after);
+
+      // 以降の連続する空行を全部スキップ
+      i++;
+      while (i < lines.length && lines[i].trim() === "") {
+        i++;
+      }
+
+      // そして空行を 1 行だけ挿入
+      resultLines.push("");
     }
 
-    var before = match[1]; // マーカーより上のすべて
-    var marker = match[2]; // 改行＋「　記 (引用文献等については引用文献等一覧参照)」
-
-    // 1) before 部分だけ ASCII 記号／数字／英字を全角に変換
-    var convertedBefore = toZenkakuAscii(before);
-
-    // 2) 変換済み before ＋ マーカー行 ＋ それ以外の残りを連結
-    return convertedBefore + str.slice(before.length);
+    return resultLines.join(newline);
   }
 
-/**
- * ASCII の記号／数字／英字 (!〜~) を全角に変換するユーティリティ。
- * - 半角スペース(0x20) はそのまま残す。
- *
- * @param {string} s
- * @returns {string}
- */
-function toZenkakuAscii(s) {
-  return String(s).replace(/[!-~]/g, function (ch) {
-    var code = ch.charCodeAt(0);
+  /**
+   * ASCII の記号／数字／英字 (!〜~) を全角に変換するユーティリティ。
+   * - 半角スペース(0x20) はそのまま残す。
+   *
+   * @param {string} s
+   * @returns {string}
+   */
+  function toZenkakuAscii(s) {
+    return String(s).replace(/[!-~]/g, function (ch) {
+      var code = ch.charCodeAt(0);
 
-    // 半角スペース(0x20)は対象外（ここにはそもそも来ないが念のため）
-    if (code === 0x20) {
-      return ch;
-    }
+      // 半角スペース(0x20)は対象外（ここにはそもそも来ないが念のため）
+      if (code === 0x20) {
+        return ch;
+      }
 
-    // ASCII 0x21〜0x7E を全角へ（+0xFEE0）
-    return String.fromCharCode(code + 0xFEE0);
-  });
-}
+      // ASCII 0x21〜0x7E を全角へ（+0xFEE0）
+      return String.fromCharCode(code + 0xFEE0);
+    });
+  }
   /**
    * 特定の「先行技術文献調査結果」のブロック部分だけを抜き出し、
    * その内部を行単位で整形する関数。
@@ -391,7 +472,6 @@ function toZenkakuAscii(s) {
     var str = String(text);
     
     str = convertBeforeKirokuLineToFullWidth(str);
-    str = convertBeforeKirokuOnlyLineToFullWidth(str);
 
     var pattern =
       /(-{20,}\r?\n)([\s\S]*?)(\r?\n[ \t\u3000]*この先行技術文献調査結果の記録は、拒絶理由を構成するものではありません。)/g;
