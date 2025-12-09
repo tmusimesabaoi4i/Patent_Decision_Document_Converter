@@ -98,32 +98,12 @@
   // 必要なフィルタ関数を取り出す
   var padHead = TextLib_Main.padHead;
   var trimHead = TextLib_Main.trimHead;
+  var tightBelowBullet = TextLib_Main.tightBelowBullet;
   var fwHead = TextLib_Main.fwHead;
-  var alphaCase = TextLib_Main.alphaCase;
   var fwNumLaw = TextLib_Main.fwNumLaw;
   var fwRefLaw = TextLib_Main.fwRefLaw;
-  var tightLines = TextLib_Main.tightLines;
+  var alphaCase = TextLib_Main.alphaCase;
   var tightClaims = TextLib_Main.tightClaims;
-  var tightNote = TextLib_Main.tightNote;
-  var tightBelowBullet = TextLib_Main.tightBelowBullet;
-
-  // どれか 1 つでも欠けている場合は警告を出して終了
-  if (
-    typeof padHead !== "function" ||
-    typeof trimHead !== "function" ||
-    typeof fwHead !== "function" ||
-    typeof alphaCase !== "function" ||
-    typeof fwNumLaw !== "function" ||
-    typeof fwRefLaw !== "function" ||
-    typeof tightLines !== "function" ||
-    typeof tightClaims !== "function" ||
-    typeof tightNote !== "function" ||
-    typeof tightBelowBullet !== "function"
-  ) {
-    // eslint-disable-next-line no-console
-    console.warn("padHead, trimHead, fwHead, alphaCase, fwNumLaw, fwRefLaw, tightLines, tightClaims, tightNote, tightBelowBullet のいずれかが定義されていません。textUtilsMain.js を確認してください。");
-    return;
-  }
 
   /**
    * stripBlankLines 側のユーティリティオブジェクトを取得
@@ -286,9 +266,7 @@
     fwNumLaw,
     fwRefLaw,
     alphaCase, // 表とか図の英字を大文字にしない
-    // tightLines,
     tightClaims,
-    tightNote
   ]);
 
   textFilterRegistry.register("stripBlankLines", [

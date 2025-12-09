@@ -39,24 +39,15 @@
   // 内部共通ユーティリティ
   // ========================================================================
 
-  /**
-   * すべての改行コード (\r\n, \r, \n) を \n に正規化して配列化
-   * @param {string} str
-   * @returns {string[]}
-   */
-  function splitLines(str) {
-    if (str == null || str === "") return [""];
-    return String(str).split(/\r\n|\r|\n/);
-  }
 
-  /**
-   * 行配列を \n で結合して文字列に戻す
-   * @param {string[]} lines
-   * @returns {string}
-   */
-  function joinLines(lines) {
-    return lines.join("\n");
-  }
+  var std = root.Std;
+  var joinLines = std.joinLines;
+  var splitLines = std.splitLines;
+  var fwNum = std.fwNum;
+  var fwAlnum = std.fwAlnum;
+  var fw = std.fw;
+
+
 
   /**
    * 行が空行かどうか（空白類のみなら空行とみなす）
@@ -81,42 +72,6 @@
    * @returns {string} - 空白文字をすべて除去した新しい文字列
    */
   const removeWS = str => str.replace(/ \u3000\t\v\f/g, '');
-
-
-  /**
-   * 数字 0-9 を全角数字 ０-９ に変換するヘルパ
-   * @param {string} c
-   * @returns {string}
-   */
-  function fwNumChar(c) {
-    var code = c.charCodeAt(0);
-    if (code >= 0x30 && code <= 0x39) {
-      return String.fromCharCode(code - 0x30 + 0xff10);
-    }
-    return c;
-  }
-
-  /**
-   * 英数字 (0-9, A-Z, a-z) を全角英数字に変換するヘルパ
-   * @param {string} c
-   * @returns {string}
-   */
-  function fwAlnumChar(c) {
-    var code = c.charCodeAt(0);
-    // 0-9
-    if (code >= 0x30 && code <= 0x39) {
-      return String.fromCharCode(code - 0x30 + 0xff10);
-    }
-    // A-Z
-    if (code >= 0x41 && code <= 0x5a) {
-      return String.fromCharCode(code - 0x41 + 0xff21);
-    }
-    // a-z
-    if (code >= 0x61 && code <= 0x7a) {
-      return String.fromCharCode(code - 0x61 + 0xff41);
-    }
-    return c;
-  }
 
   /**
    * padLeftZero
@@ -156,24 +111,6 @@
     return sign + zeros + s;
   }
 
-  /**
-   * 文字列中の数字のみを全角化
-   * @param {string} text
-   * @returns {string}
-   */
-  function toFwNumStr(text) {
-    return String(text).replace(/[0-9]/g, fwNumChar);
-  }
-
-  /**
-   * 文字列中の英数字を全角化
-   * @param {string} text
-   * @returns {string}
-   */
-  function toFwAlnumStr(text) {
-    return String(text).replace(/[0-9A-Za-z]/g, fwAlnumChar);
-  }
-
   // 正規表現用にエスケープするユーティリティ
   function escapeForRegExp(s) {
     return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
@@ -197,7 +134,7 @@
    * @type {RegExp}
    */
   // var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|[A-Za-z]+(?=\s)|第[0-9]{1,2}(?=\s)))/;
-  var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|第[0-9]{1,2}(?=\s)))/;
+  var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,2}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|第[0-9]{1,2}(?=\s)))/;
 
   // ========================================================================
   // 1. 空白挿入（先頭）
@@ -215,6 +152,7 @@
    * @returns {string} 行頭に空白が挿入された文字列
    */
   function padHead(str, count) {
+    // str = nl(ss(str)); // 初期化
     var lines = splitLines(str);
     var c = typeof count === "number" && count > 0 ? count : 1;
     var pad = new Array(c + 1).join("　"); // " ".repeat(c) 互換
@@ -254,6 +192,7 @@
    * @returns {string} 行頭空白が条件に応じて削除された文字列
    */
   function trimHead(str, mode) {
+    // str = nl(ss(str)); // 初期化
     var lines = splitLines(str);
     var modes;
 
@@ -421,8 +360,8 @@
       var dotMatch = line.match(dotRe);
       if (dotMatch) {
         if (m === "dot" || m === "both") {
-          // 行全体の英数字を全角化
-          lines[i] = toFwAlnumStr(line);
+          // 行全体の全ての文字を全角化
+          lines[i] = fw(line);
           // dot 行は既に処理済みなので次行へ
           continue;
         }
@@ -438,7 +377,7 @@
           if (idx >= 0) {
             var before = line.slice(0, idx);
             var after = line.slice(idx + headMark.length);
-            var fwMark = toFwAlnumStr(headMark);
+            var fwMark = fwAlnum(headMark);
             lines[i] = before + fwMark + after;
           }
         }
@@ -479,57 +418,57 @@
     // 1-1. 「第◯条の◯第◯項第◯号」形式を処理
     s = s.replace(/第([0-9]+)条の([0-9]+)第([0-9]+)項第([0-9]+)号/g, (_, j, n, k, g) => {
       j = removeWS(j); n = removeWS(n); k = removeWS(k); g = removeWS(g);
-      return `第${toFwNumStr(j)}条の${toFwNumStr(n)}第${toFwNumStr(k)}項第${toFwNumStr(g)}号`;
+      return `第${fwNum(j)}条の${fwNum(n)}第${fwNum(k)}項第${fwNum(g)}号`;
     });
     // 1-2. 「第◯条の◯第◯項」形式を処理
     s = s.replace(/第([0-9]+)条の([0-9]+)第([0-9]+)項/g, (_, j, n, k) => {
       j = removeWS(j); n = removeWS(n); k = removeWS(k);
-      return `第${toFwNumStr(j)}条の${toFwNumStr(n)}第${toFwNumStr(k)}項`;
+      return `第${fwNum(j)}条の${fwNum(n)}第${fwNum(k)}項`;
     });
     // 1-3. 「第◯条の◯」形式を処理
     s = s.replace(/第([0-9]+)条の([0-9]+)/g, (_, j, n) => {
       j = removeWS(j); n = removeWS(n);
-      return `第${toFwNumStr(j)}条の${toFwNumStr(n)}`;
+      return `第${fwNum(j)}条の${fwNum(n)}`;
     });
 
     // 2-1. 「第◯条第◯項第◯号」形式を処理
     s = s.replace(/第([0-9]+)条第([0-9]+)項第([0-9]+)号/g, (_, j, k, g) => {
       j = removeWS(j); k = removeWS(k); g = removeWS(g);
-      return `第${toFwNumStr(j)}条第${toFwNumStr(k)}項第${toFwNumStr(g)}号`;
+      return `第${fwNum(j)}条第${fwNum(k)}項第${fwNum(g)}号`;
     });
     
     // 2-2. 「第◯条第◯項」形式を処理
     s = s.replace(/第([0-9]+)条第([0-9]+)項/g, (_, j, k) => {
       j = removeWS(j); k = removeWS(k);
-      return `第${toFwNumStr(j)}条第${toFwNumStr(k)}項`;
+      return `第${fwNum(j)}条第${fwNum(k)}項`;
     });
     
     // 2-3. 「第◯条」形式を処理
     s = s.replace(/PCT第([0-9]+)条/g, (_, j) => {
       j = removeWS(j);
-      return `ＰＣＴ第${toFwNumStr(j)}条`;
+      return `ＰＣＴ第${fwNum(j)}条`;
     });
     
     s = s.replace(/第([0-9]+)条/g, (_, j) => {
       j = removeWS(j);
-      return `第${toFwNumStr(j)}条`;
+      return `第${fwNum(j)}条`;
     });
 
     // 3. 「特許法施行規則」
     s = s.replace(/特許法施行規則様式第([0-9]+)備考([0-9、]+)/g, (_, j, n) => {
       j = removeWS(j); n = removeWS(n);
-      return `特許法施行規則様式第${toFwNumStr(j)}備考${toFwNumStr(n)}`;
+      return `特許法施行規則様式第${fwNum(j)}備考${fwNum(n)}`;
     });
     
     // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
-    s = s.replace(/第([0-9A-Za-z\.\s]+)(節|頁|章)/g, function (_, j, suffix) {
+    s = s.replace(/第([0-9A-Za-z\.]+)(節|頁|章)/g, function (_, j, suffix) {
       j = removeWS(j);
-      return "第" + toFwAlnumStr(j) + suffix;
+      return "第" + fwAlnum(j) + suffix;
     });
     // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
-    s = s.replace(/JPGL第([0-9A-Za-z\.\s]+)(部)/g, function (_, j, suffix) {
+    s = s.replace(/JPGL第([0-9A-Za-z\.]+)(部)/g, function (_, j, suffix) {
       j = removeWS(j);
-      return "ＪＰＧＬ第" + toFwAlnumStr(j) + suffix;
+      return "ＪＰＧＬ第" + fwAlnum(j) + suffix;
     });
 
     // 3) 日付を全数字化
@@ -538,37 +477,37 @@
       y = padLeftZero(y.trim(),2);
       m = padLeftZero(m.trim(),2);
       d = padLeftZero(d.trim(),2);
-      return `令和${toFwNumStr(y)}年${toFwNumStr(m)}月${toFwNumStr(d)}日`;
+      return `令和${fwNum(y)}年${fwNum(m)}月${fwNum(d)}日`;
     });
 
     // 3) キーワード後続の番号列（簡易的に行末までを対象とする）
     var KEYWORD_RE =
-      /(引用文献|文献|相違点|主張)([\s:：]*)([0-9A-Za-z、,\-\.\s及び又は]+)/g;
+      /(引用文献|文献|相違点|主張|上記|前記)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
 
     s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
       tail = removeWS(tail);
       // tail 部分の英数字を全角化
-      var fwTail = toFwAlnumStr(tail);
+      var fwTail = fwAlnum(tail);
       return kw + sep + fwTail;
     });
 
     var KEYWORD_RE =
-      /(請求項)([\s:：]*)([0-9A-Za-z、,\-\.\(\)\s及び又は]+)/g;
+      /(請求項)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
 
     s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
       tail = removeWS(tail);
       // tail 部分の英数字を全角化
-      var fwTail = toFwAlnumStr(tail);
+      var fwTail = fwAlnum(tail);
       return kw + sep + fwTail;
     });
     
     var KEYWORD_RE =
-      /(段落|図|式)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)\s及び又は]+)/g;
+      /(段落|図|式)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
 
     s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
       tail = removeWS(tail);
       // tail 部分の英数字を全角化
-      var fwTail = toFwAlnumStr(tail);
+      var fwTail = fwAlnum(tail);
       return kw + sep + fwTail;
     });
 
@@ -601,7 +540,7 @@
       inner = removeWS(inner);
       // 直前が「特」なら「特表」なのでスキップ
       if (offset > 0 && s.charAt(offset - 1) === "特") return match;
-      return "表" + toFwAlnumStr(inner) + "";
+      return "表" + fwAlnum(inner) + "";
     });
 
   }
@@ -731,32 +670,6 @@
     return stripBlankLinesBetween(s, startMarkers, endMarkers);
   }
 
-
-  // ========================================================================
-  // 9. 付記／補正の示唆部分（ブロック内空白行削除：簡易版）
-  // ========================================================================
-
-  /**
-   * 「付記」「補正の示唆」ブロック内の空白行を削除する（簡易版）
-   *
-   * ▼ 対象とする開始行（行頭判定）
-   *   - "付記" で始まる行
-   *   - "補正の示唆" で始まる行
-   *
-   * ▼ ブロックの終端
-   *   - 次に現れる「行頭が全角ブラケット '【' 」の行
-   *   - またはテキスト末尾
-   *
-   * 対象ブロック内の空白行を削除し、内容を詰める。
-   * 実際の運用仕様に合わせて開始条件・終了条件は調整可能。
-   *
-   * @param {string} str 入力文字列
-   * @returns {string} 付記／補正の示唆ブロック内の空白行が削除された文字列
-   */
-  function tightNote(str) {
-    return str;
-  }
-
   // ========================================================================
   // グローバル公開
   // ========================================================================
@@ -785,6 +698,5 @@
     // 行構造（改行・空行）系
     tightLines: tightLines,
     tightClaims: tightClaims,
-    tightNote: tightNote
   };
 })(globalThis);

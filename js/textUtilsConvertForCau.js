@@ -432,8 +432,9 @@
           if (outLines.length > 0 && outLines[outLines.length - 1] !== "") {
             outLines.push(""); // 空行を挿入
           }
+        } else {
+          outLines.push(""); // 空行を挿入
         }
-        outLines.push(""); // 空行を挿入
         // ＜補正の示唆＞ もここで終了
         inSuggestion = false;
 
