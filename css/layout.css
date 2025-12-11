@@ -7,7 +7,10 @@
 .app {
   width: 100%;
   max-width: 1100px;
-  background: radial-gradient(circle at top right, rgba(33, 150, 243, 0.12), rgba(33, 150, 243, 0)) border-box,
+  background:
+    radial-gradient(circle at top right,
+      rgba(33, 150, 243, 0.12),
+      rgba(33, 150, 243, 0)) border-box,
     var(--surface);
   border-radius: 22px;
   box-shadow: var(--shadow-elevated);
@@ -22,8 +25,12 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 15% 0, rgba(59, 130, 246, 0.14), transparent 55%),
-    radial-gradient(circle at 80% 0, rgba(129, 212, 250, 0.18), transparent 60%);
+    radial-gradient(circle at 15% 0,
+      rgba(59, 130, 246, 0.14),
+      transparent 55%),
+    radial-gradient(circle at 80% 0,
+      rgba(129, 212, 250, 0.18),
+      transparent 60%);
   opacity: 0.85;
   pointer-events: none;
   z-index: 0;
@@ -46,7 +53,7 @@
 }
 
 .app-header-main {
-  max-width: 620px;
+  max-width: 640px;
 }
 
 .app-title {
@@ -59,18 +66,6 @@
   gap: var(--space-3);
 }
 
-.app-title-badge {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  border: 1px solid rgba(59, 130, 246, 0.5);
-  background: rgba(226, 239, 255, 0.9);
-  color: var(--brand-700);
-}
-
 .app-subtitle {
   margin: 0;
   font-size: 0.85rem;
@@ -80,16 +75,19 @@
 .app-header-meta {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .app-tag {
   font-size: 0.75rem;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
-  background: rgba(226, 239, 255, 0.9);
+  background: rgba(226, 239, 255, 0.94);
   border: 1px solid var(--border-subtle);
   color: var(--brand-700);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Panels */
@@ -109,13 +107,11 @@
 }
 
 .panel-modes {
-  /* Safari 用 プレフィックス */
+  /* Safari 用プレフィックス */
   -webkit-backdrop-filter: blur(10px);
-
   /* 標準 */
   backdrop-filter: blur(10px);
-
-  /* backdrop-filter 非対応ブラウザ用フォールバック */
+  /* 非対応ブラウザ用フォールバック */
   background-color: rgba(255, 255, 255, 0.9);
 }
 
@@ -153,37 +149,24 @@
   .app-header-main {
     max-width: 100%;
   }
+
+  .app-header-meta {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 780px) {
-  .io-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .app {
     padding-inline: var(--space-4);
   }
 }
 
 @media (max-width: 520px) {
-  body {
-    padding: var(--space-4);
-  }
-
   .app {
     padding: var(--space-5);
   }
 
   .panel {
     padding-inline: var(--space-4);
-  }
-
-  .actions-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .actions-meta {
-    width: 100%;
   }
 }

@@ -1,6 +1,6 @@
 /* ==========================================================================
    Typo warning modal (日本語タイポ検出用モーダル)
-   - jaTypoChecker.js が動的に DOM を生成する前提
+   jaTypoChecker.js が .typo-modal 要素を動的に生成する前提
    ========================================================================== */
 
 .typo-modal {
@@ -14,20 +14,17 @@
   display: block;
 }
 
-/* タイポ警告モーダルの背面ぼかし */
+/* Backdrop */
+
 .typo-modal__backdrop {
   position: absolute;
   inset: 0;
-
-  /* ぼかし非対応ブラウザ用の半透明背景（フォールバック） */
-  background: rgba(15, 23, 42, 0.45);
-
-  /* Safari 用プレフィックス */
+  background: rgba(15, 23, 42, 0.45); /* フォールバック */
   -webkit-backdrop-filter: blur(4px);
-
-  /* 標準プロパティ */
   backdrop-filter: blur(4px);
 }
+
+/* Dialog */
 
 .typo-modal__dialog {
   position: relative;
@@ -106,7 +103,7 @@
   justify-content: flex-end;
 }
 
-/* 小さい画面向けレイアウト調整 */
+/* Small screens */
 
 @media (max-width: 520px) {
   .typo-modal__dialog {

@@ -356,18 +356,39 @@
         });
       }
 
+      // ★ ショートカットキー（Ctrl/Cmd + Enter で変換、Alt + Enter でコピー）
       if (this._inputEl) {
-        this._inputEl.addEventListener("keydown", (event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        const handleShortcutKeydown = (event) => {
+          // Ctrl + Enter / Cmd + Enter → 変換
+          if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key === "Enter") {
             event.preventDefault();
             this._handleConvert().catch((err) => {
               console.error("[AppCore] 変換処理で予期せぬ例外:", err);
               this._toast.show("変換中にエラーが発生しました。", "error");
             });
+            return;
           }
-        });
+
+          // Alt + Enter → クリップボードにコピー
+          if (event.altKey && !event.ctrlKey && !event.metaKey && event.key === "Enter") {
+            event.preventDefault();
+            this._handleCopy().catch((err) => {
+              console.error("[AppCore] コピー処理で予期せぬ例外:", err);
+              this._toast.show("コピーに失敗しました。", "error");
+            });
+          }
+        };
+
+        // 入力テキストエリアでショートカット有効
+        this._inputEl.addEventListener("keydown", handleShortcutKeydown);
+
+        // （お好みで）出力側にも同じショートカットを効かせたい場合
+        if (this._outputEl) {
+          this._outputEl.addEventListener("keydown", handleShortcutKeydown);
+        }
       }
     }
+
 
     /**
      * モード選択ラジオから現在選択されているモードキーを取得する

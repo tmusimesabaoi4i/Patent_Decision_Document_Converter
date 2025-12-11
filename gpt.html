@@ -1,3 +1,7 @@
+<!-- https://www.j-platpat.inpit.go.jp/c1801/PU/JP-2001-190010/11/ja -->
+ <!-- US20210123456 -->
+  <!-- WO2022057009 -->
+   <!-- CN106664607 -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,7 +9,7 @@
   <!--
     Patent Decision Document Converter
     - Production HTML
-    - Styles in ./css/styles.css
+    - Styles in ./css/base.css, ./css/layout.css, ./css/components.css, ./css/modal.css
     - Logic in ./js/app.js
   -->
   <title>Patent Decision Document Converter</title>
@@ -27,14 +31,17 @@
           Normalize and transform Office Actions, Final Rejections, Amendment Refusals, Pre-examination Reports, and PCT documents.
         </p>
       </div>
+      <div class="app-header-meta">
+        <span class="app-tag">Step-by-step · Internal tool</span>
+      </div>
     </header>
 
     <main class="app-main" aria-label="Patent decision document converter tool">
       <!-- Mode Selection -->
       <section class="panel panel-modes" aria-labelledby="mode-heading">
         <div class="panel-heading">
-          <h2 id="mode-heading" class="panel-title">Mode</h2>
-          <p class="panel-subtitle">Choose the document type to apply its dedicated conversion function.</p>
+          <h2 id="mode-heading" class="panel-title">Step 1 · Mode</h2>
+          <p class="panel-subtitle">Choose the document type; the converter will apply its optimized rule set.</p>
         </div>
 
         <fieldset class="mode-group" role="radiogroup" aria-label="Patent decision document type">
@@ -114,18 +121,24 @@
       </section>
 
       <!-- Input / Output -->
-      <section class="panel panel-io" aria-label="Input and output text">
+      <section class="panel panel-io" aria-labelledby="io-heading">
+        <div class="panel-heading">
+          <h2 id="io-heading" class="panel-title">Step 2 · Input &amp; Output</h2>
+          <p class="panel-subtitle">Paste the original document on the left; the converted result appears on the right.</p>
+        </div>
+
         <div class="io-grid">
           <!-- Input column -->
           <div class="io-column">
             <div class="io-label-row">
               <label class="io-label" for="inputText">Input text</label>
-              <p class="io-hint">Content is normalized to half-width before transformation.</p>
+              <p class="io-hint" id="inputHint">Content is normalized to half-width before transformation.</p>
             </div>
             <textarea
               id="inputText"
               class="io-textarea"
               placeholder="Paste the raw patent office document here."
+              aria-describedby="inputHint"
             ></textarea>
           </div>
 
@@ -133,20 +146,26 @@
           <div class="io-column">
             <div class="io-label-row">
               <label class="io-label" for="outputText">Output text</label>
-              <p class="io-hint">Converted result is shown here.</p>
+              <p class="io-hint" id="outputHint">Converted result is shown here.</p>
             </div>
             <textarea
               id="outputText"
               class="io-textarea io-textarea--output"
               placeholder="Converted text will appear here."
               readonly
+              aria-describedby="outputHint"
             ></textarea>
           </div>
         </div>
       </section>
 
       <!-- Actions -->
-      <section class="panel panel-actions" aria-label="Conversion and copy controls">
+      <section class="panel panel-actions" aria-labelledby="actions-heading">
+        <div class="panel-heading">
+          <h2 id="actions-heading" class="panel-title">Step 3 · Run &amp; Copy</h2>
+          <p class="panel-subtitle">Run the conversion, then copy the normalized text into your drafting tool.</p>
+        </div>
+
         <div class="actions-row">
           <div class="actions-buttons">
             <button id="convertBtn" type="button" class="btn btn-primary">
@@ -161,8 +180,11 @@
           </div>
 
           <div class="actions-meta">
-            <p class="actions-hint">
-              <strong>Shortcut:</strong> <kbd>Ctrl</kbd> + <kbd>Enter</kbd> (or <kbd>⌘</kbd> + <kbd>Enter</kbd> on Mac) to convert.
+            <p class="actions-hint" id="shortcutHint">
+              <strong>Shortcuts:</strong>
+              <kbd>Ctrl</kbd> + <kbd>Enter</kbd>
+              (or <kbd>⌘</kbd> + <kbd>Enter</kbd> on Mac) – Convert /
+              <kbd>Alt</kbd> + <kbd>Enter</kbd> – Copy output.
             </p>
           </div>
         </div>
@@ -185,7 +207,7 @@
       </div>
     </div>
   </div>
-  
+
   <script src="filterRegistry/filterRegistry.js"></script>
   <script src="TextTransformer/TextTransformer.js"></script>
 
