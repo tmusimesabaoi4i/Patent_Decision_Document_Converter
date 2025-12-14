@@ -371,6 +371,30 @@
   }
 
   /**
+   * 「取得先 <http:...>」で囲まれたURL部分だけをすべて小文字化して返す
+   * - 文字列中に複数あっても全件処理（/g）
+   * - 「取得先 < ... >」の外側は一切変更しない
+   *
+   * @param {string} str
+   * @returns {string}
+   */
+  function lcKenshuSakiUrl(str) {
+    if (typeof str !== "string" || str.length === 0) return str;
+
+    // 「取得先 <」 + URL(http/https) + 「>」 を検出
+    // front : 「取得先 <」側（空白含む）
+    // __all  : マッチ全体
+    // rear  : 「>」側（空白含む）
+    const re = /(取得先\s*<\s*)([\s\S]+)(\s*>)/g;
+
+    return str.replace(re, function (__all, front, url, rear) {
+      // URL部分だけ小文字化して、元の文字列（front/rear）に戻す
+      return front + url.toLowerCase() + rear;
+    });
+  }
+
+
+  /**
    * 実際の行ごとの処理本体。
    *
    * - ＜補正の示唆＞／＜ファミリー文献情報＞の開始を検出して
@@ -493,7 +517,7 @@
    * - 最後に < / > を全角に変換する。
    */
   function convertForOther(text) {
-    var lines = splitLines(text);
+    var lines = splitLines(lcKenshuSakiUrl(text));
     var outLines = lines.map(function (line) {
       var raw = String(line);
       // 行頭の空白を除いた版
