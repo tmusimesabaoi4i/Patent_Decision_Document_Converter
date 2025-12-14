@@ -1,0 +1,127 @@
+/* ==========================================================================
+   Base: tokens, global reset, layout for <body>
+   ========================================================================== */
+
+:root {
+  /* Brand / semantic colors */
+  --brand-50: #eaf3ff;
+  --brand-100: #d4e4ff;
+  --brand-300: #60a5ff;
+  --brand-400: #1e90ff;
+  --brand-500: #0b6ef6;
+  --brand-600: #0b57cf;
+  --brand-700: #0b4ba8;
+
+  --bg-body: #f3f6fb;
+  --bg-soft: #eaf4ff;
+  --surface: #ffffff;
+
+  --border-subtle: #d0e2ff;
+  --border-strong: #99b7f0;
+
+  --text-main: #0f172a;
+  --text-muted: #6b7280;
+  --text-soft: #9ca3af;
+
+  --accent-success: #16a34a;
+  --accent-danger: #dc2626;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* Spacing scale */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 20px;
+  --space-8: 24px;
+  --space-10: 32px;
+
+  /* Shadows */
+  --shadow-soft: 0 8px 30px rgba(11, 78, 160, 0.08);
+  --shadow-elevated: 0 18px 40px rgba(11, 78, 160, 0.14);
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+
+  /* Others */
+  --transition-fast: 0.15s ease-out;
+}
+
+/* Reset-ish */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at top, #e3f2fd 0, var(--bg-body) 45%, #e0ebff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+}
+
+/* Form controls inherit typography */
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+}
+
+/* Better default focus */
+
+:focus-visible {
+  outline: 2px solid var(--brand-500);
+  outline-offset: 3px;
+}
+
+/* Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Body padding on smaller screens */
+
+@media (max-width: 960px) {
+  body {
+    padding: var(--space-6);
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    padding: var(--space-4);
+  }
+}
