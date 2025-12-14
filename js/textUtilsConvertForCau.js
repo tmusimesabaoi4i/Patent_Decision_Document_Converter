@@ -523,6 +523,14 @@
       // 行頭の空白を除いた版
       var headTrimmed = raw.replace(/^[ \u3000]+/, "");
 
+      if (headTrimmed === "SA WG1-4") {
+        return "SA  WG1-4";
+      }
+
+      if (headTrimmed === "CT WG1、4") {
+        return "CT  WG1、4";
+      }
+
       if (headTrimmed === "記 (引用文献等については引用文献等一覧参照)") {
         return "　　　　　記　　　（引用文献等については引用文献等一覧参照）";
       }
