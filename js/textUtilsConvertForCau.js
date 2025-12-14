@@ -385,7 +385,7 @@
     // front : 「取得先 <」側（空白含む）
     // __all  : マッチ全体
     // rear  : 「>」側（空白含む）
-    const re = /(取得先\s*<\s*)([\s\S]+)(\s*>)/g;
+    const re = /(取得先\s*<)([\S]+)(>)/g;
 
     return str.replace(re, function (__all, front, url, rear) {
       // URL部分だけ小文字化して、元の文字列（front/rear）に戻す
@@ -523,12 +523,12 @@
       // 行頭の空白を除いた版
       var headTrimmed = raw.replace(/^[ \u3000]+/, "");
 
-      if (headTrimmed === "SA WG1-4") {
-        return "SA  WG1-4";
+      if (headTrimmed === "SA WG1-4、6") {
+        return "　　　　　　　　　　　　　　　SA  WG1-4、6";
       }
 
       if (headTrimmed === "CT WG1、4") {
-        return "CT  WG1、4";
+        return "　　　　　　　　　　　　　　　CT  WG1、4";
       }
 
       if (headTrimmed === "記 (引用文献等については引用文献等一覧参照)") {
