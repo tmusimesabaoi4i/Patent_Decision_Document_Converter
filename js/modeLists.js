@@ -79,6 +79,7 @@
         // -------------------------------------------------------------
         // 例: var names = ["init", "exp1", "exp2"];
         var names = ["init", "main", "stripBlankLines", "convertEnd"];
+        // var names = ["init", "main", "stripBlankLines"];
         // var names = ["init", "main"];
         // var names = ["init"];
 

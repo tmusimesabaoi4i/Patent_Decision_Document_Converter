@@ -4,159 +4,344 @@
   /**
    * patTextOps.js
    * ------------------------------------------------------------------------
-   * 特許文書向けテキスト整形ユーティリティ
+   * 特許文書向けテキスト整形ユーティリティ（拡張性重視・過剰変換抑制版）
    *
-   * ▼ 目的
-   *   - 箇条書きや条文番号、引用箇所など、特許実務でよく出てくる
-   *     独特の書式に対して、共通パターンで加工を行う関数群を提供する。
+   * 【設計の要点】
+   * 1) 正規表現は “複数行リテラル” や “/x のような非対応フラグ” を使わない。
+   *    - JS は /x（free-spacing）をサポートしないため、読みやすさのために
+   *      「改行・空白を混ぜたリテラル」を書くと、構文エラー/マッチ不整合を招く。
+   *    - 代わりに “パーツ配列” で組み立て、RegExp() で生成する。
    *
-   * ▼ 設計方針
-   *   - すべての公開関数は基本形として (str: string) => string の形で実装。
-   *     ※ 一部は第 2 引数 options でオーバーロードできるようにしているが、
-   *       フィルタパイプラインでは 1 引数だけで使用可能。
-   *   - 処理の粒度は「ライン単位」を基本としつつ、条文番号や引用部は
-   *     正規表現で抽出して部分変換を行う。
-   *   - 全角化は「数字のみ」または「数字＋英字」を用途に応じて使い分ける。
+   * 2) 全角化は “必要な箇所だけ” を狙う（過剰変換しない）。
+   *    - IEEE802.11 / WPA-PSK のような技術用語トークンは保護して維持する。
    *
-   * ▼ 主な公開関数（概要）
-   *   - padHead     : 行頭に空白を挿入（空白挿入（先頭））
-   *   - trimHead    : 条件付きで行頭空白を削除（箇条書き・< など）
-   *   - fwHead      : 箇条書き行のマーク／行全体を条件付き全角化
-   *   - alphaCase   : 英字の大小変換（大文字化・小文字化）
-   *   - fwNumLaw    : 条文番号・第◯節/頁・キーワード後続番号の全角化
-   *   - fwRefLaw    : 【図】【表】【式】など引用箇所の番号全角化
-   *   - tightLines  : 改行圧縮（余分な空行の圧縮）
-   *   - tightClaims : 『』内（主張部分）の空白行削除
-   *   - tightNote   : 付記／補正の示唆ブロック内の空白行削除
-   *   - tightBelowBullet : 箇条書き行の直下空行（または 1 行）を削除して詰める
-   *
-   * 各関数は単独でフィルタとして使えるように設計しているため、
-   * FilterRegistry / TextFilterRegistry などのパイプラインにもそのまま組み込める。
+   * 3) fwHead のデフォルトは "head"（見出しマークのみ変換）にする。
+   *    - ドット箇条書き行を勝手に fw(line) しない（全角化バグの主因を潰す）。
    * ------------------------------------------------------------------------
    */
 
-  // ========================================================================
-  // 内部共通ユーティリティ
-  // ========================================================================
+  // ======================================================================
+  // 依存（Std）
+  // ======================================================================
 
+  var Std = root.Std || null;
+  if (!Std) {
+    // eslint-disable-next-line no-console
+    console.warn("patTextOps.js: root.Std が見つかりません。Std を先に読み込んでください。");
+    return;
+  }
 
-  var std = root.Std;
-  var joinLines = std.joinLines;
-  var splitLines = std.splitLines;
-  var fwNum = std.fwNum;
-  var fwAlnum = std.fwAlnum;
-  var fw = std.fw;
+  var joinLines = Std.joinLines;
+  var splitLines = Std.splitLines;
+  var fwNum = Std.fwNum;     // 数字のみ全角化
+  var fwAlnum = Std.fwAlnum; // 英数字を全角化
+  var fw = Std.fw;           // 文字全般を全角化（影響が大きいので使用箇所を限定）
 
-
+  // ======================================================================
+  // 内部ユーティリティ
+  // ======================================================================
 
   /**
-   * 行が空行かどうか（空白類のみなら空行とみなす）
+   * 空行判定：空白類のみなら空行
    * @param {string} line
    * @returns {boolean}
    */
   function isBlankLine(line) {
-    return /^[ \t\r\f\v\u3000]*$/.test(line);
+    return /^[ \t\r\n\f\v\u3000]*$/.test(String(line || ""));
   }
 
   /**
-   * 文字列からすべての空白文字（ホワイトスペース）を削除する
-   *
-   * 対象となる空白文字には以下が含まれます：
-   * - 半角スペース（' '）
-   * - タブ（\t）
-   * - 改行（\n, \r）
-   * - 垂直タブ（\v）
-   * - フォームフィード（\f）
-   *
-   * @param {string} str - 処理対象の文字列
-   * @returns {string} - 空白文字をすべて除去した新しい文字列
+   * すべての空白文字（半角/全角スペース、タブ、改行等）を削除
+   * @param {string} s
+   * @returns {string}
    */
-  const removeWS = str => str.replace(/ \u3000\t\v\f/g, '');
+  function removeWS(s) {
+    return String(s || "").replace(/[ \u3000\t\r\n\v\f]+/g, "");
+  }
 
   /**
-   * padLeftZero
-   *
-   * 指定した長さになるように、数値または文字列の左側を '0' で埋めて返すユーティリティ関数。
-   * - 正負符号がある場合は符号を保持して、数値部分のみをゼロ詰めする。
-   * - 入力は数値でも文字列でも受け付ける（内部で String に変換して処理）。
-   * - 既に指定長以上の長さがある場合は、そのまま返す（切り詰めはしない）。
-   *
-   * @param {number|string} y - ゼロ詰めしたい値。数値または数値を表す文字列を想定。
-   *                            小数点や桁区切りが含まれる場合は、事前に整形して渡すこと。
-   * @param {number} n - 返したい最小文字長（ゼロ詰め後の長さ）。負の値や非整数は無視される。
-   * @returns {string} 指定長に左ゼロ詰めされた文字列。符号があれば先頭に付与される。
-   *
-   * 例:
-   *   padLeftZero(5, 3)     -> "005"
-   *   padLeftZero("12", 4)  -> "0012"
-   *   padLeftZero(-7, 2)    -> "-07"
-   *   padLeftZero(1234, 3)  -> "1234"  // 既に長いのでそのまま
+   * padLeftZero（左ゼロ詰め）
+   * - ゼロは半角 "0" を使用（後段で fwNum する運用が多く、ここで全角にしない）
+   * @param {number|string} y
+   * @param {number} n
+   * @returns {string}
    */
   function padLeftZero(y, n) {
-    n = Math.floor(Number(n)); // n を整数化（数値変換に失敗すると NaN になる）
-    if (!isFinite(n) || n <= 0) {
-      return String(y);
-    }
+    n = Math.floor(Number(n));
+    if (!isFinite(n) || n <= 0) return String(y);
+
     var s = String(y);
     var sign = "";
     if (s.charAt(0) === "-" || s.charAt(0) === "+") {
       sign = s.charAt(0);
-      s = s.slice(1); // 符号を取り除いた部分をゼロ詰め対象とする
+      s = s.slice(1);
     }
     if (s.length >= n) return sign + s;
+
     if (typeof String.prototype.padStart === "function") {
-      return sign + s.padStart(n, "　");
+      return sign + s.padStart(n, "0");
     }
-    var zeros = new Array(n - s.length + 1).join("　"); // 必要なゼロ数を生成
+    var zeros = new Array(n - s.length + 1).join("0");
     return sign + zeros + s;
   }
 
-  // 正規表現用にエスケープするユーティリティ
+  /**
+   * 正規表現用エスケープ
+   * @param {string} s
+   * @returns {string}
+   */
   function escapeForRegExp(s) {
-    return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
+    return String(s || "").replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&");
   }
 
   /**
-   * 箇条書き用の「ドットマーク」候補セット
-   * - 実務でよく登場する記号のみをデフォルトで含める。
-   *   必要に応じてコード側で変更してよい。
+   * RegExp.flags が無い環境向け：フラグ文字列を復元
+   * @param {RegExp} re
+   * @returns {string}
+   */
+  function getRegExpFlags(re) {
+    if (re.flags != null) return re.flags;
+    var f = "";
+    if (re.global) f += "g";
+    if (re.ignoreCase) f += "i";
+    if (re.multiline) f += "m";
+    if (re.unicode) f += "u";
+    if (re.sticky) f += "y";
+    if (re.dotAll) f += "s";
+    return f;
+  }
+
+  /**
+   * 「必ず global で置換したい」用途のため、g フラグを強制付与して複製
+   * @param {RegExp} re
+   * @returns {RegExp}
+   */
+  function ensureGlobal(re) {
+    var flags = getRegExpFlags(re);
+    if (flags.indexOf("g") === -1) flags += "g";
+    return new RegExp(re.source, flags);
+  }
+
+  // ======================================================================
+  // 過剰変換防止：技術用語トークン保護
+  // ======================================================================
+
+  /**
+   * 変換から除外したい “技術用語トークン” の既定セット
+   * - 追加したい場合は root.patTextOpsConfig.keepTechReList で拡張できる。
+   * @type {RegExp[]}
+   */
+  var DEFAULT_KEEP_TECH_RE_LIST = [
+    /IEEE\s*802\.\d+(?:\.\d+)*(?:[a-z])?/gi,
+    /\b802\.\d+(?:\.\d+)*(?:[a-z])?\b/gi,
+    /\bWPA(?:\d+)?-PSK\b/gi,
+    /\b[A-Z]{2,}(?:[0-9]{0,3})?(?:[-\/][A-Z0-9]{2,})+\b/g,
+    /\bWi-?Fi\b/gi
+  ];
+
+  /**
+   * 正規表現リストに一致する箇所を番兵に置換して保護
+   * @param {string} text
+   * @param {RegExp[]} reList
+   * @returns {{ text: string, map: string[] }}
+   */
+  function protectByRegexList(text, reList) {
+    var out = String(text || "");
+    var map = [];
+
+    for (var i = 0; i < reList.length; i++) {
+      var re = ensureGlobal(reList[i]);
+      out = out.replace(re, function (m) {
+        var idx = map.length;
+        map.push(m);
+        // Private Use Area を番兵として使用（通常入力に現れにくい）
+        return "\uE000" + idx + "\uE001";
+      });
+    }
+    return { text: out, map: map };
+  }
+
+  /**
+   * 番兵を元に戻す
+   * @param {string} text
+   * @param {string[]} map
+   * @returns {string}
+   */
+  function restoreProtected(text, map) {
+    return String(text || "").replace(/\uE000(\d+)\uE001/g, function (_m, n) {
+      var idx = Number(n);
+      return map && map[idx] != null ? map[idx] : _m;
+    });
+  }
+
+  /**
+   * 技術トークン保護付きで変換関数を適用
+   * @param {string} text
+   * @param {(s:string)=>string} fn
+   * @param {RegExp[]} keepList
+   * @returns {string}
+   */
+  function applyWithTechProtection(text, fn, keepList) {
+    var p = protectByRegexList(text, keepList);
+    var changed = fn(p.text);
+    return restoreProtected(changed, p.map);
+  }
+
+  // ======================================================================
+  // 設定（拡張ポイント）
+  // ======================================================================
+
+  /**
+   * 呼び出し側で拡張できる設定
+   * 例）
+   *   root.patTextOpsConfig = {
+   *     dotMarks: ["・","●",...],
+   *     heading: { maxDigits: 2, maxDepth: 3, alphaMax: 2 },
+   *     keepTechReList: [ /.../g, ... ]
+   *   };
+   */
+  var CFG = root.patTextOpsConfig || {};
+
+  // ======================================================================
+  // 箇条書き・見出し判定（RegExp ビルダー方式）
+  // ======================================================================
+
+  /**
+   * ドット箇条書き候補
    * @type {string[]}
    */
-  var DOT_MARKS = ["・", "●", "○", "◆", "◇", "■", "□"];
+  var DOT_MARKS = Array.isArray(CFG.dotMarks) && CFG.dotMarks.length
+    ? CFG.dotMarks.slice()
+    : ["・", "●", "○", "◆", "◇", "■", "□"];
 
-  var DASH_AND_ANGLE_MARKS = ["-", "<"];   // 記号の形状に着目した命名
 
+    
   /**
-   * 「見出し型箇条書き」の簡易判定用正規表現
-   * - 行頭の空白を許容し、その後に 1〜3 桁の数字や英字 + "." or ")" などを想定。
-   *   例: "1.", "1)", "(1)", "a.", "A)" 等
-   * - 実際の運用に合わせて調整可能。
-   * @type {RegExp}
+   * tightBelowBullet 用に “形状で扱う” 記号
+   * @type {string[]}
    */
-  // var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,3}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|[A-Za-z]+(?=\s)|第[0-9]{1,2}(?=\s)))/;
-  var HEADING_MARK_RE = /^[ \u3000]*((?:[\(\（][0-9]{1,2}[\)\）]|[\(\（][A-Za-z]{1,2}[\)\）]|[0-9]{1,2}[\.．]|[A-Za-z][\.．]|[0-9]{1,2}(?=\s)|第[0-9]{1,2}(?=\s)))/;
-
-  // ========================================================================
-  // 1. 空白挿入（先頭）
-  // ========================================================================
+  var DASH_AND_ANGLE_MARKS = ["-", "<"];
 
   /**
-   * 行頭に空白を挿入する
+   * 見出しマーク用 RegExp を生成する（拡張性重視）
    *
-   * - すべての非空行の先頭に指定個数の半角スペースを付与する。
-   * - 第 2 引数 count を省略した場合は 1 個だけ付与。
-   * - 既に空白が存在していても、そのまま上から追加する（正規化は行わない）。
+   * - JS には /x が無いので「読みやすい複数行リテラル」を使わない。
+   * - パターン要素を parts[] に積み、最後に join("|") して RegExp を作る。
    *
-   * @param {string} str 入力文字列
-   * @param {number} [count=1] 付与する半角スペースの個数（オーバーロード用）
-   * @returns {string} 行頭に空白が挿入された文字列
+   * @param {{maxDigits?:number, maxDepth?:number, alphaMax?:number}} opts
+   * @returns {RegExp} ^([空白])([見出しマーク])
+   */
+  function buildHeadingMarkRe(opts) {
+    opts = opts || {};
+    var maxDigits = Number(opts.maxDigits);
+    var maxDepth = Number(opts.maxDepth);
+    var alphaMax = Number(opts.alphaMax);
+
+    // デフォルト（実務での誤爆を避ける安全側）
+    if (!isFinite(maxDigits) || maxDigits <= 0) maxDigits = 2; // 1〜2桁
+    if (!isFinite(maxDepth) || maxDepth < 0) maxDepth = 3;    // 1.2.3 くらいまで
+    if (!isFinite(alphaMax) || alphaMax <= 0) alphaMax = 2;    // A / AB 程度
+
+    // 過度に広げると誤爆しやすいので上限を設ける（保守しやすさ）
+    if (maxDigits > 4) maxDigits = 4;
+    if (maxDepth > 6) maxDepth = 6;
+    if (alphaMax > 4) alphaMax = 4;
+
+    var SP0 = "[ \\u3000]*";
+    var NUM = "[0-9０-９]";
+    var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
+    var OPEN_P = "[\\(\\（]";
+    var CLOSE_P = "[\\)\\）]";
+    var DOT = "[\\.．]";
+    var CLOSE_ONLY = "[\\)\\）]";
+
+    // “番号チェーン” (例: 8 / 8.2 / 8.2.3)
+    var seg = NUM + "{1," + maxDigits + "}";
+    var chain = seg + "(?:" + DOT + seg + "){0," + maxDepth + "}";
+
+    // 数字が単独で来るケースは “後続が区切り” のときだけ拾う（誤爆抑制）
+    var delimAfterNum = "(?:[\\s\\u3000]|$|[、,，．。\\.：:;；\\)\\）])";
+
+    // 「第1」系は “後続がそれっぽい語” のときだけ拾う
+    var suffixAfterDai = "(?:[\\s\\u3000]|$|[、,，．。\\.：:;；]|[章節条項号編部款頁回図表])";
+
+    var parts = [];
+
+    // (1) (1) / （１）
+    parts.push(OPEN_P + seg + CLOSE_P);
+
+    // (2) (A) / （AB）
+    parts.push(OPEN_P + ALPHA + "{1," + alphaMax + "}" + CLOSE_P);
+
+    // (3) 1. / 1.2. / 1.2.3.
+    parts.push(chain + DOT);
+
+    // (4) 1) / 2） など
+    parts.push(seg + CLOSE_ONLY);
+
+    // (5) A. / AB.
+    parts.push(ALPHA + "{1," + alphaMax + "}" + DOT);
+
+    // (6) A) / AB）
+    parts.push(ALPHA + "{1," + alphaMax + "}" + CLOSE_ONLY);
+
+    // (7) 1 / 1.2.3（ただし後続が区切りのとき）
+    parts.push(chain + "(?=" + delimAfterNum + ")");
+
+    // (8) 第1（ただし後続が章/節/条等に続く “らしい” とき）
+    parts.push("第" + seg + "(?=" + suffixAfterDai + ")");
+
+    var inner = "(?:" + parts.join("|") + ")";
+
+    // キャプチャ方針：
+    //  m[1] = 行頭空白（半角/全角）
+    //  m[2] = 見出しマーク本体
+    return new RegExp("^(" + SP0 + ")(" + inner + ")");
+  }
+
+  /**
+   * DOT_MARKS から “行頭ドット箇条書き” 判定用 RegExp を生成
+   * @param {string[]} marks
+   * @returns {RegExp}
+   */
+  function buildDotBulletRe(marks) {
+    var cls = (marks || []).map(escapeForRegExp).join("");
+    return new RegExp("^[ \\u3000]*([" + cls + "])");
+  }
+
+  // 見出しマーク判定（拡張可能）
+  var HEADING_MARK_RE = buildHeadingMarkRe(CFG.heading || {});
+
+  // ドット箇条書き判定
+  var DOT_BULLET_RE = buildDotBulletRe(DOT_MARKS);
+
+  // tightBelowBullet 用（● を除外したい運用がある場合の互換）
+  var DOT_MARKS_FOR_TIGHT = DOT_MARKS.filter(function (ch) { return ch !== "●"; });
+  var DOT_BULLET_RE_FOR_TIGHT = buildDotBulletRe(DOT_MARKS_FOR_TIGHT);
+
+  // - / < の行頭判定
+  var DASH_ANGLE_RE = new RegExp("^[ \\u3000]*([" + DASH_AND_ANGLE_MARKS.map(escapeForRegExp).join("") + "])");
+
+  // 技術トークン保護リスト（設定で追加可能）
+  var KEEP_TECH_RE_LIST = (function () {
+    var extra = Array.isArray(CFG.keepTechReList) ? CFG.keepTechReList : [];
+    return DEFAULT_KEEP_TECH_RE_LIST.concat(extra);
+  })();
+
+  // ======================================================================
+  // 1. 空白挿入（先頭）
+  // ======================================================================
+
+  /**
+   * 行頭に “全角スペース” を count 個挿入
+   * @param {string} str
+   * @param {number} [count=1]
+   * @returns {string}
    */
   function padHead(str, count) {
-    // str = nl(ss(str)); // 初期化
-    var lines = splitLines(str);
+    var lines = splitLines(String(str || ""));
     var c = typeof count === "number" && count > 0 ? count : 1;
-    var pad = new Array(c + 1).join("　"); // " ".repeat(c) 互換
-
+    var pad = new Array(c + 1).join("　");
     for (var i = 0; i < lines.length; i++) {
       if (lines[i] === "") continue;
       lines[i] = pad + lines[i];
@@ -164,36 +349,18 @@
     return joinLines(lines);
   }
 
-  // ========================================================================
+  // ======================================================================
   // 2. 空白削除（条件付き）
-  //   - 先頭文字が【空白＋箇条書き_ドット】
-  //   - 先頭文字が【空白＋箇条書き_見出し】
-  //   - 先頭文字が【空白＋<】
-  // ========================================================================
+  // ======================================================================
 
   /**
-   * 行頭の空白を条件付きで削除する
-   *
-   * ▼ mode の指定（オーバーロード）
-   *   - 省略 or "all"
-   *       → すべての行で「行頭の空白類（半角・全角）」を削除（trimStart 相当）
-   *   - "dot"
-   *       → 「半角または全角空白 + 箇条書きドット記号」で始まる行だけ、
-   *          先頭の空白 1 文字を削除する。
-   *   - "head"
-   *       → 「半角または全角空白 + 見出しマーク（HEADING_MARK_RE で判定）」で
-   *          始まる行だけ、先頭の空白 1 文字を削除する。
-   *   - "lt"
-   *       → 「半角または全角空白 + '<'」で始まる行だけ、先頭の空白 1 文字を削除。
-   *   - ["dot", "lt"] のように配列で複数指定も可能。
-   *
-   * @param {string} str 入力文字列
-   * @param {string|string[]} [mode="all"] 削除モード
-   * @returns {string} 行頭空白が条件に応じて削除された文字列
+   * 行頭空白を条件付きで削除
+   * @param {string} str
+   * @param {string|string[]} [mode] 未指定なら ["dot","head","lt"]
+   * @returns {string}
    */
   function trimHead(str, mode) {
-    // str = nl(ss(str)); // 初期化
-    var lines = splitLines(str);
+    var lines = splitLines(String(str || ""));
     var modes;
 
     if (mode == null) {
@@ -213,35 +380,29 @@
       var line = lines[i];
 
       if (useAll) {
-        // 先頭の空白類（半角・全角）をすべて削除
         lines[i] = line.replace(/^[ \t\u3000]+/, "");
         continue;
       }
 
       var trimmed = line;
 
-      // 「空白 + ドット箇条書き」の場合だけ 1 文字削除
       if (useDot && /^[ \u3000]/.test(trimmed)) {
         for (var d = 0; d < DOT_MARKS.length; d++) {
           var mark = DOT_MARKS[d];
           if (trimmed.indexOf(" " + mark) === 0 || trimmed.indexOf("　" + mark) === 0) {
-            trimmed = trimmed.slice(1); // 先頭の空白 1 文字だけ削除
+            trimmed = trimmed.slice(1);
             break;
           }
         }
       }
 
-      // 「空白 + 見出し箇条書き」の場合だけ 1 文字削除
       if (useHead && /^[ \u3000]/.test(trimmed) && HEADING_MARK_RE.test(trimmed.slice(1))) {
         trimmed = trimmed.slice(1);
       }
 
-      // 「空白 + '<'」で始まる場合だけ 1 文字削除
       if (useLt && (trimmed.indexOf(" <") === 0 || trimmed.indexOf("　<") === 0)) {
         trimmed = trimmed.slice(1);
       }
-
-      // 「空白 + '<'」で始まる場合だけ 1 文字削除
       if (useLt && (trimmed.indexOf(" -") === 0 || trimmed.indexOf("　-") === 0)) {
         trimmed = trimmed.slice(1);
       }
@@ -252,31 +413,18 @@
     return joinLines(lines);
   }
 
-  // ========================================================================
-  // 10. 箇条書き行の直下行削除で詰める
-  //     - 先頭文字が【箇条書き_ドット】 → 直下行削除
-  //     - 先頭文字が【箇条書き_見出し】 → 直下行削除
-  // ========================================================================
+  // ======================================================================
+  // 10. 箇条書き直下の空行削除
+  // ======================================================================
 
   /**
-   * 箇条書き行の直下行を削除して詰める
-   *
-   * ▼ 挙動（デフォルト）
-   *   - mode によって対象となる箇条書き行を切り替える：
-   *       "dot"  : ドット箇条書き行のみ対象
-   *       "head" : 見出し箇条書き行のみ対象
-   *       "both" : 両方を対象（デフォルト）
-   *   - 対象となった行の「直下の行」が空行（空白のみ含む行を含む）の場合、
-   *     その直下行を削除して行を詰める。
-   *   - 「空行のみ削除」にしているのは安全側の実装とするためであり、
-   *     必要であれば「常に 1 行削除」に変更可能。
-   *
-   * @param {string} str 入力文字列
-   * @param {"dot"|"head"|"both"} [mode="both"] 箇条書き種別
-   * @returns {string} 箇条書き直下の空行が削除された文字列
+   * 箇条書き行の直下が空行なら、その空行を1行だけ削除
+   * @param {string} str
+   * @param {"dot"|"head"|"both"} [mode="both"]
+   * @returns {string}
    */
   function tightBelowBullet(str, mode) {
-    var lines = splitLines(str);
+    var lines = splitLines(String(str || ""));
     var n = lines.length;
     var m = mode || "both";
     var useDot = m === "both" || m === "dot";
@@ -289,357 +437,337 @@
       var line = lines[i];
       out.push(line);
 
-      var isDotBullet = false;
-      var isHeadBullet = false;
-      var isDashAndAngle = false;
+      var isDotBullet = useDot && DOT_BULLET_RE_FOR_TIGHT.test(line);
+      var isHeadBullet = useHead && HEADING_MARK_RE.test(line);
+      var isDashOrAngle = DASH_ANGLE_RE.test(line);
 
-      var dotRe_marksClass = DOT_MARKS.filter(ch => ch !== "●").map(escapeForRegExp).join("");
-      var dotRe = new RegExp("^[ \\u3000]*([" + dotRe_marksClass + "])");
-
-      var dAaRe_marksClass = DASH_AND_ANGLE_MARKS.map(escapeForRegExp).join("");
-      var dAaRe = new RegExp("^[ \\u3000]*([" + dAaRe_marksClass + "])");
-
-      if (useDot && dotRe.test(line)) {
-        isDotBullet = true;
-      }
-      if (useHead && HEADING_MARK_RE.test(line)) {
-        isHeadBullet = true;
-      }
-      if (dAaRe.test(line)) {
-        isDashAndAngle = true;
-      }
-
-      if ((isDotBullet || isHeadBullet || isDashAndAngle) && i + 1 < n) {
-        var nextLine = lines[i + 1];
-        if (isBlankLine(nextLine)) {
-          // 直下行が空行ならスキップ（＝削除）
-          i +=2;
+      if ((isDotBullet || isHeadBullet || isDashOrAngle) && i + 1 < n) {
+        if (isBlankLine(lines[i + 1])) {
+          i += 2;
           continue;
         }
-      } 
+      }
       i += 1;
     }
 
     return joinLines(out);
   }
 
-  // ========================================================================
+  // ======================================================================
   // 3. 全角化（条件付き）
-  //   - 先頭文字が【箇条書き_見出し】 → マーク全角化
-  //   - 先頭文字が【箇条書き_ドット】 → 行全体全角化
-  // ========================================================================
+  // ======================================================================
 
   /**
-   * 行頭条件に応じて全角化を行う
+   * 見出し・箇条書き条件に応じて全角化
    *
-   * ▼ mode の指定（オーバーロード）
-   *   - "head"（デフォルト）
-   *       → 見出し型箇条書き行の「マーク部分のみ」を全角英数字化。
-   *         例: "1. 本発明は…" → "１. 本発明は…"
-   *   - "dot"
-   *       → ドット箇条書き行全体に対して全角英数字化を行う。
-   *         例: "・ a) sample1, sample2" → "・ ａ) ｓａｍｐｌｅ１, ｓａｍｐｌｅ２"
+   * 重要：
+   * - デフォルトは "head"（見出しマークのみ変換）
+   * - "dot"/"both" で行全体 fw() をする場合でも、技術トークンは保護して戻す
    *
-   * @param {string} str 入力文字列
-   * @param {"head"|"dot"} [mode="head"] 全角化モード
-   * @returns {string} 条件付き全角化後の文字列
+   * @param {string} str
+   * @param {"head"|"dot"|"both"} [mode="head"]
+   * @returns {string}
    */
   function fwHead(str, mode) {
-    var lines = splitLines(str);
-    var m = mode || "both";
-
-    // ドット記号用の正規表現を事前作成（空白はあってもなくてもよい）
-    var marksClass = DOT_MARKS.map(escapeForRegExp).join("");
-    var dotRe = new RegExp("^[ \\u3000]*([" + marksClass + "])");
+    var lines = splitLines(String(str || ""));
+    var m = mode || "head";
 
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line === "") continue;
 
-      // 1) ドット箇条書き判定（行頭）
-      var dotMatch = line.match(dotRe);
-      if (dotMatch) {
+      // (1) ドット箇条書き行
+      if (DOT_BULLET_RE.test(line)) {
         if (m === "dot" || m === "both") {
-          // 行全体の全ての文字を全角化
-          lines[i] = fw(line);
-          // dot 行は既に処理済みなので次行へ
+          lines[i] = applyWithTechProtection(line, fw, KEEP_TECH_RE_LIST);
           continue;
         }
-        // mode が "head" の場合は dot 行はスキップして見出し判定へ進める
       }
 
-      // 2) 見出しマーク判定（head 処理）
+      // (2) 見出しマーク：マーク部分だけ fwAlnum
       if (m === "head" || m === "both") {
-        var mHead = line.match(HEADING_MARK_RE);
-        if (mHead) {
-          var headMark = mHead[1]; // マーク部分（正規表現でキャプチャされる想定）
-          var idx = line.indexOf(headMark);
-          if (idx >= 0) {
-            var before = line.slice(0, idx);
-            var after = line.slice(idx + headMark.length);
-            var fwMark = fwAlnum(headMark);
-            lines[i] = before + fwMark + after;
-          }
+        var mh = HEADING_MARK_RE.exec(line);
+        if (mh) {
+          var pre = mh[1];
+          var mark = mh[2];
+          var after = line.slice(pre.length + mark.length);
+          lines[i] = pre + fwAlnum(mark) + after;
         }
       }
-      // それ以外はそのまま
     }
 
-    return joinLines(lines);
+    return fwLineStartsWithBlackDot(joinLines(lines));
   }
-  
-  // ========================================================================
-  // 5. 番号全角化（条文番号・第◯節／第◯頁・キーワード後続数字）
-  // ========================================================================
 
   /**
-   * 条文系の番号を全角化する
-   *
-   * 対象とするパターン（簡易版。必要に応じて拡張可能）:
-   *   1) 「第◯条」
-   *        - 例: "第12条" → "第１２条"
-   *   2) 「第◯節」「第◯頁」（数字＋英字）
-   *        - 例: "第3A節" → "第３Ａ節"
-   *   3) キーワード後続の番号列（数字 or 数字＋英字）
-   *        - キーワード: 「引用文献」「文献」「相違点」「主張」「請求項」
-   *        - 区切り: 「、」「,」「-」「及び」「又は」「.」などを想定
-   *        - 例: "引用文献 1, 2-4" → "引用文献 １, ２-４"
-   *
-   * 実装は簡易的な正規表現ベースとし、特殊な書き方が出てきた場合は
-   * 正規表現を追加・修正する前提。
+   * 行頭が「●」で始まる行だけを全角化する
+   * - 「文頭」とは「文字列先頭」または「改行 \n の直後」を指す（= 行の先頭 ^）。
+   * - 行頭に空白がある「　●...」「 ●...」は対象外（※必要なら後で拡張可能）。
+   * - 変換は Std.fw（文字列全体を全角化する関数）に委譲する想定。
    *
    * @param {string} str 入力文字列
-   * @returns {string} 番号部分が全角化された文字列
+   * @returns {string} 「●」行のみ全角化された文字列
+   */
+  function fwLineStartsWithBlackDot(str) {
+    var s = String(str || "");
+    var fw = root.Std && root.Std.fw ? root.Std.fw : null;
+    var splitLines = root.Std && root.Std.splitLines ? root.Std.splitLines : null;
+    var joinLines = root.Std && root.Std.joinLines ? root.Std.joinLines : null;
+
+    if (!fw || !splitLines || !joinLines) {
+      // Std が無い場合は安全側でそのまま返す
+      return s;
+    }
+
+    var lines = splitLines(s);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line && line.charAt(0) === "●") {
+        lines[i] = fw(line);
+      }
+    }
+    return joinLines(lines);
+  }
+
+  // ======================================================================
+  // 5. 番号全角化（条文番号など）
+  // ======================================================================
+
+  /**
+   * 条文系番号を全角化（過剰変換抑制）
+   * @param {string} str
+   * @returns {string}
    */
   function fwNumLaw(str) {
     var s = String(str || "");
+    var DIGS_WS = "[0-9０-９\\s\\u3000]+";
 
-    // 1) 第◯条 形式の数字だけを全角化
-    // 1-1. 「第◯条の◯第◯項第◯号」形式を処理
-    s = s.replace(/第([0-9]+)条の([0-9]+)第([0-9]+)項第([0-9]+)号/g, (_, j, n, k, g) => {
-      j = removeWS(j); n = removeWS(n); k = removeWS(k); g = removeWS(g);
-      return `第${fwNum(j)}条の${fwNum(n)}第${fwNum(k)}項第${fwNum(g)}号`;
-    });
-    // 1-2. 「第◯条の◯第◯項」形式を処理
-    s = s.replace(/第([0-9]+)条の([0-9]+)第([0-9]+)項/g, (_, j, n, k) => {
-      j = removeWS(j); n = removeWS(n); k = removeWS(k);
-      return `第${fwNum(j)}条の${fwNum(n)}第${fwNum(k)}項`;
-    });
-    // 1-3. 「第◯条の◯」形式を処理
-    s = s.replace(/第([0-9]+)条の([0-9]+)/g, (_, j, n) => {
-      j = removeWS(j); n = removeWS(n);
-      return `第${fwNum(j)}条の${fwNum(n)}`;
-    });
+    // 第◯条の◯第◯項第◯号
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条の(" + DIGS_WS + ")第(" + DIGS_WS + ")項第(" + DIGS_WS + ")号", "g"),
+      function (_all, j, n, k, g) {
+        j = removeWS(j); n = removeWS(n); k = removeWS(k); g = removeWS(g);
+        return "第" + fwNum(j) + "条の" + fwNum(n) + "第" + fwNum(k) + "項第" + fwNum(g) + "号";
+      }
+    );
 
-    // 2-1. 「第◯条第◯項第◯号」形式を処理
-    s = s.replace(/第([0-9]+)条第([0-9]+)項第([0-9]+)号/g, (_, j, k, g) => {
-      j = removeWS(j); k = removeWS(k); g = removeWS(g);
-      return `第${fwNum(j)}条第${fwNum(k)}項第${fwNum(g)}号`;
-    });
-    
-    // 2-2. 「第◯条第◯項」形式を処理
-    s = s.replace(/第([0-9]+)条第([0-9]+)項/g, (_, j, k) => {
-      j = removeWS(j); k = removeWS(k);
-      return `第${fwNum(j)}条第${fwNum(k)}項`;
-    });
-    
-    // 2-3. 「第◯条」形式を処理
-    s = s.replace(/PCT第([0-9]+)条/g, (_, j) => {
-      j = removeWS(j);
-      return `ＰＣＴ第${fwNum(j)}条`;
-    });
-    
-    s = s.replace(/第([0-9]+)条/g, (_, j) => {
-      j = removeWS(j);
-      return `第${fwNum(j)}条`;
-    });
+    // 第◯条の◯第◯項
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条の(" + DIGS_WS + ")第(" + DIGS_WS + ")項", "g"),
+      function (_all, j, n, k) {
+        j = removeWS(j); n = removeWS(n); k = removeWS(k);
+        return "第" + fwNum(j) + "条の" + fwNum(n) + "第" + fwNum(k) + "項";
+      }
+    );
 
-    // 3. 「特許法施行規則」
-    s = s.replace(/特許法施行規則様式第([0-9]+)備考([0-9、]+)/g, (_, j, n) => {
-      j = removeWS(j); n = removeWS(n);
-      return `特許法施行規則様式第${fwNum(j)}備考${fwNum(n)}`;
-    });
-    
-    // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
-    s = s.replace(/第([0-9A-Za-z\.]+)(節|頁|章)/g, function (_, j, suffix) {
-      j = removeWS(j);
-      return "第" + fwAlnum(j) + suffix;
-    });
-    // 2) 第◯節 / 第◯頁 （数字＋英字）を全角英数字化
-    s = s.replace(/JPGL第([0-9A-Za-z\.]+)(部)/g, function (_, j, suffix) {
-      j = removeWS(j);
-      return "ＪＰＧＬ第" + fwAlnum(j) + suffix;
-    });
+    // 第◯条の◯
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条の(" + DIGS_WS + ")", "g"),
+      function (_all, j, n) {
+        j = removeWS(j); n = removeWS(n);
+        return "第" + fwNum(j) + "条の" + fwNum(n);
+      }
+    );
 
-    // 3) 日付を全数字化
-    s = s.replace(/令和([0-9\s]+)年([0-9\s]+)月([0-9\s]+)日/g, function (_, y, m, d) {
-      y = removeWS(y); m = removeWS(m); d = removeWS(d);
-      y = padLeftZero(y.trim(),2);
-      m = padLeftZero(m.trim(),2);
-      d = padLeftZero(d.trim(),2);
-      return `令和${fwNum(y)}年${fwNum(m)}月${fwNum(d)}日`;
-    });
+    // 第◯条第◯項第◯号
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条第(" + DIGS_WS + ")項第(" + DIGS_WS + ")号", "g"),
+      function (_all, j, k, g) {
+        j = removeWS(j); k = removeWS(k); g = removeWS(g);
+        return "第" + fwNum(j) + "条第" + fwNum(k) + "項第" + fwNum(g) + "号";
+      }
+    );
 
-    // 3) キーワード後続の番号列（簡易的に行末までを対象とする）
-    var KEYWORD_RE =
-      /(引用文献|文献|相違点|主張|上記|前記)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
+    // 第◯条第◯項
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条第(" + DIGS_WS + ")項", "g"),
+      function (_all, j, k) {
+        j = removeWS(j); k = removeWS(k);
+        return "第" + fwNum(j) + "条第" + fwNum(k) + "項";
+      }
+    );
 
-    s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
-      tail = removeWS(tail);
-      // tail 部分の英数字を全角化
-      var fwTail = fwAlnum(tail);
-      return kw + sep + fwTail;
-    });
+    // PCT第◯条（出力は ＰＣＴ に統一）
+    s = s.replace(new RegExp("(?:PCT|ＰＣＴ)第(" + DIGS_WS + ")条", "g"),
+      function (_all, j) {
+        j = removeWS(j);
+        return "ＰＣＴ第" + fwNum(j) + "条";
+      }
+    );
 
-    var KEYWORD_RE =
-      /(請求項)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
+    // 第◯条
+    s = s.replace(new RegExp("第(" + DIGS_WS + ")条", "g"),
+      function (_all, j) {
+        j = removeWS(j);
+        return "第" + fwNum(j) + "条";
+      }
+    );
 
-    s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
-      tail = removeWS(tail);
-      // tail 部分の英数字を全角化
-      var fwTail = fwAlnum(tail);
-      return kw + sep + fwTail;
-    });
-    
-    var KEYWORD_RE =
-      /(段落|図|式)([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g;
+    // 特許法施行規則様式第◯備考◯、◯
+    s = s.replace(/特許法施行規則様式第([0-9０-９\s\u3000]+)備考([0-9０-９\s\u3000、,，]+)/g,
+      function (_all, j, n) {
+        j = removeWS(j); n = removeWS(n);
+        return "特許法施行規則様式第" + fwNum(j) + "備考" + fwNum(n);
+      }
+    );
 
-    s = s.replace(KEYWORD_RE, function (_all, kw, sep, tail) {
-      tail = removeWS(tail);
-      // tail 部分の英数字を全角化
-      var fwTail = fwAlnum(tail);
-      return kw + sep + fwTail;
+    // 第◯節/頁/章（英数字）
+    s = s.replace(/第([0-9０-９A-Za-zＡ-Ｚａ-ｚ\.．\s\u3000]+)(節|頁|章)/g,
+      function (_all, j, suffix) {
+        j = removeWS(j);
+        return "第" + fwAlnum(j) + suffix;
+      }
+    );
+
+    // JPGL第◯部
+    s = s.replace(/(?:JPGL|ＪＰＧＬ)第([0-9０-９A-Za-zＡ-Ｚａ-ｚ\.．\s\u3000]+)(部)/g,
+      function (_all, j, suffix) {
+        j = removeWS(j);
+        return "ＪＰＧＬ第" + fwAlnum(j) + suffix;
+      }
+    );
+
+    // 令和YY年MM月DD日
+    s = s.replace(/令和([0-9０-９\s\u3000]+)年([0-9０-９\s\u3000]+)月([0-9０-９\s\u3000]+)日/g,
+      function (_all, y, m, d) {
+        y = padLeftZero(removeWS(y).trim(), 2);
+        m = padLeftZero(removeWS(m).trim(), 2);
+        d = padLeftZero(removeWS(d).trim(), 2);
+        return "令和" + fwNum(y) + "年" + fwNum(m) + "月" + fwNum(d) + "日";
+      }
+    );
+
+    // キーワード後続番号列：先頭が数字で始まる列のみ（WPA-PSK 等を誤爆させない）
+    var KEYWORDS = "(引用文献|文献|相違点|主張|上記|前記|請求項|段落|図|式)";
+    var PARTICLE = "(?:は|が|を|に|へ|と|で|の|から|まで|より)";
+
+    var DIG = "[0-9０-９]";
+    var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
+    var TOKEN = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
+    var SEP = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
+    var TAIL = "(" + TOKEN + "(?:" + SEP + TOKEN + ")*)";
+
+    var KEYWORD_RE = new RegExp(
+      KEYWORDS +
+        "(?![\\s\\u3000]*" + PARTICLE + ")" +
+        "([\\s\\u3000]*[:：]?[\\s\\u3000]*)" +
+        TAIL,
+      "g"
+    );
+
+    s = s.replace(KEYWORD_RE, function (_all, kw, sep2, tail) {
+      return kw + sep2 + fwAlnum(removeWS(tail));
     });
 
     return s;
   }
 
-  // ========================================================================
-  // 6. 引用箇所全角化
-  //   - 【特に段落】で始まる数字
-  //   - 【図】で始まる数字＋英字
-  //   - 【特表】でない【表】で始まる数字＋英字
-  //   - 【式】で始まる数字＋英字
-  // ========================================================================
+  // ======================================================================
+  // 6. 引用箇所番号全角化（安全側：数字開始のみ）
+  // ======================================================================
 
   /**
-   * 引用箇所（【図】【表】【式】など）の番号を全角化する
-   *
-   *  文中の「特表」を除く「表(...)」の括弧内だけ、数字＋英字を全角化する
-   *  - 例: 「表(1-3, A)」→ 「表（１－３， Ａ）」
-   *  - 例: 「特表(1-3)」→ 変更しない
-   *
-   * 区切り記号「、」「-」「及び」「又は」「[」「]」「(」「)」「.」などは
-   * そのまま残しつつ、数字と英字だけを全角化する。
-   *
-   * @param {string} str 入力文字列
-   * @returns {string} 引用番号が全角化された文字列
+   * 図/表/式/段落の参照番号を全角化（安全側）
+   * - 「特表(...)」は除外（従来互換）
+   * - “数字開始” の参照列のみ対象（WPA-PSK 等の誤爆防止）
+   * @param {string} str
+   * @returns {string}
    */
   function fwRefLaw(str) {
-    return str.replace(/表([\s:：]*)([0-9A-Za-z、,\-\.\[\]\(\)及び又は]+)/g, function (match, _all ,inner, offset, s) {
-      inner = removeWS(inner);
-      // 直前が「特」なら「特表」なのでスキップ
-      if (offset > 0 && s.charAt(offset - 1) === "特") return match;
-      return "表" + fwAlnum(inner) + "";
+    var s = String(str || "");
+
+    var DIG = "[0-9０-９]";
+    var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
+    var TOKEN = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
+    var SEP = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
+    var TAIL = "(" + TOKEN + "(?:" + SEP + TOKEN + ")*)";
+
+    // 表：直前が「特」なら “特表” なのでスキップ
+    var reTable = new RegExp("(表)([\\s\\u3000:：]*?)" + TAIL, "g");
+    s = s.replace(reTable, function (match, kw, sep2, tail, offset, whole) {
+      if (offset > 0 && whole.charAt(offset - 1) === "特") return match;
+      return kw + sep2 + fwAlnum(removeWS(tail));
     });
 
+    // 図/式/段落
+    var reOther = new RegExp("(図|式|段落)([\\s\\u3000:：]*?)" + TAIL, "g");
+    s = s.replace(reOther, function (_all, kw2, sep3, tail2) {
+      return kw2 + sep3 + fwAlnum(removeWS(tail2));
+    });
+
+    return s;
   }
 
-  // ========================================================================
-  // 4. 文字置換（英字の大小処理）
-  // ========================================================================
+  // ======================================================================
+  // 4. 英字大小（技術トークン保護あり）
+  // ======================================================================
 
   /**
-   * 英字の連続部分（単語）の先頭1文字のみを大文字に変換する
-   *
-   * ▼ 処理内容
-   *   - 半角英字（a〜z, A〜Z）の連続部分（単語）をすべて検出
-   *   - 各単語の先頭1文字を大文字にし、2文字目以降はそのまま
-   *   - 区切り文字（数字、記号、スペース、改行など）はそのまま保持
-   *
-   * ▼ 対象外
-   *   - 全角英字（Ａ〜Ｚ、ａ〜ｚ）は対象外
-   *   - 英字以外の文字列は変更されない
-   *
-   * @param {string} str 入力文字列
-   * @returns {string} 英字単語の先頭のみ大文字にした文字列
+   * 英単語の先頭1文字のみ大文字化（ただし技術トークンは保護）
+   * @param {string} str
+   * @returns {string}
    */
   function alphaCase(str) {
-    return String(str || "").replace(/[a-zA-Z]+/g, function (word) {
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    });
+    var s = String(str || "");
+
+    return applyWithTechProtection(s, function (t) {
+      return t.replace(/[a-zA-Z]+/g, function (word) {
+        // 既に先頭が大文字なら変更しない（過剰な大小変換を避ける）
+        var c0 = word.charAt(0);
+        if (c0 >= "A" && c0 <= "Z") return word;
+        return c0.toUpperCase() + word.slice(1);
+      });
+    }, KEEP_TECH_RE_LIST);
   }
 
-  // ========================================================================
-  // 7. 改行圧縮
-  // ========================================================================
+  // ======================================================================
+  // 7. 空行削除（※圧縮ではなく “全削除”）
+  // ======================================================================
 
   /**
-   * 改行（空行）を圧縮する
-   *
-   * - 連続する空行を 1 行に圧縮しつつ、先頭と末尾の空行は削除する。
-   * - 「空白類のみの行」も空行として扱う。
-   * - コンテンツ行同士の間には最大 1 行の空行だけが存在する状態を目指す。
-   *
-   * @param {string} str 入力文字列
-   * @returns {string} 改行が圧縮された文字列
+   * 空行（空白のみ行を含む）をすべて削除する
+   * @param {string} str
+   * @returns {string}
    */
   function tightLines(str) {
     if (str == null || str === "") return "";
-    const s = String(str);
-    const lines = splitLines(str);
-    const outLines = [];
-
-    for (const line of lines) {
-        if (isBlankLine(line)) {
-          // 空行はすべて削除
-          continue;
-        }
-      outLines.push(line);
+    var lines = splitLines(String(str));
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      if (isBlankLine(lines[i])) continue;
+      out.push(lines[i]);
     }
-
-    return joinLines(outLines);
+    return joinLines(out);
   }
 
-  // ========================================================================
-  // 8. 主張部分（『』内の空白行削除）
-  // ========================================================================
-
+  // ======================================================================
+  // 8. 『』内の空白行削除
+  // ======================================================================
 
   /**
-   * 指定したマーカーに挟まれた範囲の空白行を削除する。
-   *
-   * - 開始マーカーと終了マーカーに挟まれたテキストを対象とし、
-   *   その内部の空白行（空文字や空白のみの行）を削除する。
-   * - マーカーは文字列または文字列配列で指定可能。
-   * - 対象範囲外のテキストは変更しない。
-   * - 入れ子構造や複数出現には非対応の簡易実装。
-   *
-   * @param {string} str 入力文字列
-   * @param {string|string[]} startMarker 開始マーカー
-   * @param {string|string[]} endMarker 終了マーカー
-   * @returns {string} 空白行が削除された文字列
+   * 開始～終了マーカーに挟まれた範囲の空白行を削除（簡易）
+   * @param {string} str
+   * @param {string|string[]} startMarker
+   * @param {string|string[]} endMarker
+   * @returns {string}
    */
   function stripBlankLinesBetween(str, startMarker, endMarker) {
     if (str == null || str === "") return "";
-    const s = String(str);
+    var s = String(str);
 
-    const starts = Array.isArray(startMarker) ? startMarker : [startMarker];
-    const ends = Array.isArray(endMarker) ? endMarker : [endMarker];
+    var starts = Array.isArray(startMarker) ? startMarker : [startMarker];
+    var ends = Array.isArray(endMarker) ? endMarker : [endMarker];
 
-    const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    function esc(x) {
+      return String(x).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
 
-    let result = s;
-    for (const start of starts) {
-      for (const end of ends) {
-        const pattern = new RegExp(
-          `(${escapeRegExp(start)})([\\s\\S]*?)(${escapeRegExp(end)})`,
-          'g'
-        );
+    var result = s;
 
-        result = result.replace(pattern, (_all, pre, inner, post) => {
-          const innerLines = splitLines(inner);
-          const outLines = innerLines.filter(line => !isBlankLine(line));
+    for (var i = 0; i < starts.length; i++) {
+      for (var j = 0; j < ends.length; j++) {
+        var pattern = new RegExp("(" + esc(starts[i]) + ")([\\s\\S]*?)(" + esc(ends[j]) + ")", "g");
+        result = result.replace(pattern, function (_all, pre, inner, post) {
+          var innerLines = splitLines(inner);
+          var outLines = [];
+          for (var k = 0; k < innerLines.length; k++) {
+            if (!isBlankLine(innerLines[k])) outLines.push(innerLines[k]);
+          }
           return pre + joinLines(outLines).trim() + post;
         });
       }
@@ -648,55 +776,38 @@
     return result;
   }
 
-
   /**
-   * 『』内（主張部分）に存在する空白行を削除する
-   *
-   * - 文字列全体から「『...』」パターンを探し、それぞれの内部で
-   *   改行単位に分割して空白行を削除する。
-   * - 『』の外側は一切変更しない。
-   * - 入れ子構造は想定せず、最短一致の『...』を対象とする簡易実装。
-   *
-   * @param {string} str 入力文字列
-   * @returns {string} 『』内部の空白行が削除された文字列
+   * 『...』内の空白行を削除
+   * @param {string} str
+   * @returns {string}
    */
   function tightClaims(str) {
     if (str == null || str === "") return "";
-    const s = String(str);
-
-    const startMarkers = "『";
-    const endMarkers = "』";
-
-    return stripBlankLinesBetween(s, startMarkers, endMarkers);
+    return stripBlankLinesBetween(String(str), "『", "』");
   }
 
-  // ========================================================================
-  // グローバル公開
-  // ========================================================================
+  // ======================================================================
+  // 公開
+  // ======================================================================
 
-  /**
-   * 公開オブジェクト
-   * - 各関数は (str: string) => string を基本形としているため、
-   *   FilterRegistry のステップ関数としてもそのまま利用可能。
-   */
   root.textUtilsMain = {
     // 空白系
     padHead: padHead,
     trimHead: trimHead,
 
-    // 下の改行を詰める(箇条書き系は全角になると反応しないので、)
+    // 箇条書き直下の空行詰め
     tightBelowBullet: tightBelowBullet,
 
-    // 全角化・文字種変換
+    // 全角化・番号処理
     fwHead: fwHead,
     fwNumLaw: fwNumLaw,
     fwRefLaw: fwRefLaw,
 
-    // 表とか図の英字を大文字にしない
+    // 大小変換（技術トークン保護あり）
     alphaCase: alphaCase,
 
-    // 行構造（改行・空行）系
+    // 行構造
     tightLines: tightLines,
-    tightClaims: tightClaims,
+    tightClaims: tightClaims
   };
 })(globalThis);
