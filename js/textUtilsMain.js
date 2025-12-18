@@ -35,7 +35,6 @@
   var splitLines = Std.splitLines;
   var fwNum = Std.fwNum;     // 数字のみ全角化
   var fwAlnum = Std.fwAlnum; // 英数字を全角化
-  var fw = Std.fw;           // 文字全般を全角化（影響が大きいので使用箇所を限定）
 
   // ======================================================================
   // 内部ユーティリティ
@@ -312,9 +311,6 @@
   // 見出しマーク判定（拡張可能）
   var HEADING_MARK_RE = buildHeadingMarkRe(CFG.heading || {});
 
-  // ドット箇条書き判定
-  var DOT_BULLET_RE = buildDotBulletRe(DOT_MARKS);
-
   // tightBelowBullet 用（● を除外したい運用がある場合の互換）
   var DOT_MARKS_FOR_TIGHT = DOT_MARKS.filter(function (ch) { return ch !== "●"; });
   var DOT_BULLET_RE_FOR_TIGHT = buildDotBulletRe(DOT_MARKS_FOR_TIGHT);
@@ -468,24 +464,11 @@
    * @param {"head"|"dot"|"both"} [mode="head"]
    * @returns {string}
    */
-  function fwHead(str, mode) {
+  function fwHead(str) {
     var lines = splitLines(String(str || ""));
-    var m = mode || "head";
-
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line === "") continue;
-
-      // (1) ドット箇条書き行
-      if (DOT_BULLET_RE.test(line)) {
-        if (m === "dot" || m === "both") {
-          lines[i] = applyWithTechProtection(line, fw, KEEP_TECH_RE_LIST);
-          continue;
-        }
-      }
-
-      // (2) 見出しマーク：マーク部分だけ fwAlnum
-      if (m === "head" || m === "both") {
         var mh = HEADING_MARK_RE.exec(line);
         if (mh) {
           var pre = mh[1];
@@ -493,10 +476,9 @@
           var after = line.slice(pre.length + mark.length);
           lines[i] = pre + fwAlnum(mark) + after;
         }
-      }
     }
 
-    return fwLineStartsWithBlackDot(joinLines(lines));
+    return fwLineStartsWithSmallDot(fwLineStartsWithBlackDot(joinLines(lines)));
   }
 
   /**
@@ -523,6 +505,26 @@
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (line && line.charAt(0) === "●") {
+        lines[i] = fw(line);
+      }
+    }
+    return joinLines(lines);
+  }
+  function fwLineStartsWithSmallDot(str) {
+    var s = String(str || "");
+    var fw = root.Std && root.Std.fw ? root.Std.fw : null;
+    var splitLines = root.Std && root.Std.splitLines ? root.Std.splitLines : null;
+    var joinLines = root.Std && root.Std.joinLines ? root.Std.joinLines : null;
+
+    if (!fw || !splitLines || !joinLines) {
+      // Std が無い場合は安全側でそのまま返す
+      return s;
+    }
+
+    var lines = splitLines(s);
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line && line.charAt(0) === "・") {
         lines[i] = fw(line);
       }
     }
@@ -633,26 +635,63 @@
     );
 
     // キーワード後続番号列：先頭が数字で始まる列のみ（WPA-PSK 等を誤爆させない）
-    var KEYWORDS = "(引用文献|文献|相違点|主張|上記|前記|請求項|段落|図|式)";
+    // -------------------------------
+    // 共通定義
+    // -------------------------------
+    var KEYWORDS_REF_NC   = "(?:引用文献|文献|段落|図|式)";
+    var KEYWORDS_CLAIM_NC = "(?:相違点|主張|上記|前記|請求項)";
     var PARTICLE = "(?:は|が|を|に|へ|と|で|の|から|まで|より)";
 
-    var DIG = "[0-9０-９]";
+    var DIG   = "[0-9０-９]";
     var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
-    var TOKEN = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
-    var SEP = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
-    var TAIL = "(" + TOKEN + "(?:" + SEP + TOKEN + ")*)";
 
-    var KEYWORD_RE = new RegExp(
-      KEYWORDS +
+    // -------------------------------
+    // REF側：[]/【】OK、()（）NG
+    // -------------------------------
+    var TOKEN_REF =
+      "(?:" +
+        DIG + "+(?:" + ALPHA + "+)?" +
+        "|\\[" + DIG + "+(?:" + ALPHA + "+)?\\]" +
+        "|\\【" + DIG + "+(?:" + ALPHA + "+)?\\】" +
+      ")(?![\\(\\（])"; // 図1(2) 等の部分マッチ防止
+
+    var SEP_REF  = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
+    var TAIL_REF = "(" + TOKEN_REF + "(?:" + SEP_REF + TOKEN_REF + ")*)";
+
+    var KEYWORD_REF_RE = new RegExp(
+      "(" + KEYWORDS_REF_NC + ")" +
         "(?![\\s\\u3000]*" + PARTICLE + ")" +
         "([\\s\\u3000]*[:：]?[\\s\\u3000]*)" +
-        TAIL,
+        TAIL_REF,
       "g"
     );
 
-    s = s.replace(KEYWORD_RE, function (_all, kw, sep2, tail) {
+    // -------------------------------
+    // CLAIM側：従来どおり ()（）も許可
+    // -------------------------------
+    var TOKEN_CLAIM = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
+    var SEP_CLAIM  = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
+    var TAIL_CLAIM = "(" + TOKEN_CLAIM + "(?:" + SEP_CLAIM + TOKEN_CLAIM + ")*)";
+
+    var KEYWORD_CLAIM_RE = new RegExp(
+      "(" + KEYWORDS_CLAIM_NC + ")" +
+        "(?![\\s\\u3000]*" + PARTICLE + ")" +
+        "([\\s\\u3000]*[:：]?[\\s\\u3000]*)" +
+        TAIL_CLAIM,
+      "g"
+    );
+
+    // -------------------------------
+    // 置換（引数は常に 3つ：kw, sep2, tail）
+    // -------------------------------
+    s = s.replace(KEYWORD_REF_RE, function (_all, kw, sep2, tail) {
       return kw + sep2 + fwAlnum(removeWS(tail));
     });
+
+    s = s.replace(KEYWORD_CLAIM_RE, function (_all, kw, sep2, tail) {
+      return kw + sep2 + fwAlnum(removeWS(tail));
+    });
+
 
     return s;
   }
@@ -673,7 +712,7 @@
 
     var DIG = "[0-9０-９]";
     var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
-    var TOKEN = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
+    var TOKEN = "(?:[\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\]\\】]?)";
     var SEP = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
     var TAIL = "(" + TOKEN + "(?:" + SEP + TOKEN + ")*)";
 
