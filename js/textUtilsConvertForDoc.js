@@ -122,7 +122,7 @@
 
         // 3個目の数字用パディング
         function pad_3rd(numStr) {
-          return ("   " + numStr).slice(-3);
+          return ("     " + numStr).slice(-5);
         }
 
         // 4個目の数字用パディング
@@ -155,19 +155,27 @@
     }
 
     if (s === "DB名 IEEE 802.11") {
-      return "　　　　　　　　DB名 IEEE 802.11";
+      return "　　　　　　　　　ＤＢ名　　IEEE 802.11";
     }
 
     if (s === "DB名 3GPP TSG RAN WG1-4") {
-      return "　　　　　　　　DB名 3GPP TSG RAN WG1-4";
+      return "　　　　　　　　　ＤＢ名　　3GPP TSG RAN WG1-4";
+    }
+
+    if (s === "IEEE 802.11") {
+      return "　　　　　　　　　　　　　　IEEE 802.11";
+    }
+
+    if (s === "3GPP TSG RAN WG1-4") {
+      return "　　　　　　　　　　　　　　3GPP TSG RAN WG1-4";
     }
 
     if (s === "SA WG1-4、6") {
-      return "　　　　　　　　　　　　　　　SA WG1-4、6";
+      return "　　　　　　　　　　　　　　　　　　 SA  WG1-4、6";
     }
 
     if (s === "CT WG1、4") {
-      return "　　　　　　　　　　　　　　　CT WG1、4";
+      return "　　　　　　　　　　　　　　　　　　 CT  WG1、4";
     }
 
     // ------------------------------
@@ -178,7 +186,7 @@
     var m = s.match(/^・調査した分野[\s\u3000]+IPC[\s\u3000]+(.+)$/);
     if (m) {
       // 「・調査した分野  IPC  (末尾)」というスペース固定フォーマットに整形
-      return "・調査した分野  IPC  " + m[1];
+      return "・調査した分野　　ＩＰＣ　　" + m[1];
     }
 
     // 例: 「・先行技術文献　特開...」など
@@ -193,7 +201,7 @@
     m = s.match(/^([A-Za-z]\d{2}[A-Za-z].*)$/);
     if (m) {
       // 所定インデント＋内容
-      return "　　　　　　　　　　 " + m[1]; // 全角スペース 10個分＋α
+      return "　　　　　　　　　　　　　　" + m[1]; // 全角スペース 10個分＋α
     }
 
     // ------------------------------
