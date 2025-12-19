@@ -1,3 +1,21 @@
+# How To PUSH
+
+```
+git add ./
+```
+
+and
+
+```
+git commit --allow-empty -m "　"
+```
+
+and
+
+```
+git push
+```
+
 # Patent_Decision_Document_Converter
 
 ```
