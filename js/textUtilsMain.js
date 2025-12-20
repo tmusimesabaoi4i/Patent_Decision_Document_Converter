@@ -78,9 +78,9 @@
     if (s.length >= n) return sign + s;
 
     if (typeof String.prototype.padStart === "function") {
-      return sign + s.padStart(n, "0");
+      return sign + s.padStart(n, "　");
     }
-    var zeros = new Array(n - s.length + 1).join("0");
+    var zeros = new Array(n - s.length + 1).join("　");
     return sign + zeros + s;
   }
 
@@ -609,7 +609,7 @@
     );
 
     // 第◯節/頁/章（英数字）
-    s = s.replace(/第([0-9０-９A-Za-zＡ-Ｚａ-ｚ\.．\s\u3000]+)(節|頁|章)/g,
+    s = s.replace(/第([0-9０-９A-Za-zＡ-Ｚａ-ｚ\.．\s\u3000]+)(節|頁|章|段落|行目)/g,
       function (_all, j, suffix) {
         j = removeWS(j);
         return "第" + fwAlnum(j) + suffix;
@@ -634,71 +634,138 @@
       }
     );
 
-    // キーワード後続番号列：先頭が数字で始まる列のみ（WPA-PSK 等を誤爆させない）
-    // -------------------------------
-    // 共通定義
-    // -------------------------------
-    var KEYWORDS_REF_NC   = "(?:引用文献|文献|段落|図|式)";
-    var KEYWORDS_CLAIM_NC = "(?:相違点|主張|上記|前記|記載|請求項)";
-    var PARTICLE = "(?:は|が|を|に|へ|と|で|の|から|まで|より)";
+    // 改良が必要
+    // // キーワード後続番号列：先頭が数字で始まる列のみ（WPA-PSK 等を誤爆させない）
+    // // -------------------------------
+    // // 共通定義
+    // // -------------------------------
+    // var KEYWORDS_REF_NC   = "(?:引用文献|文献|段落|図|式)";
+    // var KEYWORDS_CLAIM_NC = "(?:相違点|主張|上記|前記|記載|請求項)";
+    // var PARTICLE = "(?:は|が|を|に|へ|と|で|の|から|まで|より)";
 
-    var DIG   = "[0-9０-９]";
-    var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
-
-    // -------------------------------
-    // REF側：[]/【】OK、()（）NG
-    // -------------------------------
-    // REF側：[]/【】OK、()（）NG
-    // - ただし「引用文献1（説明）」のように “説明の丸括弧” が続くのは許可
-    // - 「図1(2)」「図1 （2）」「図1(A)」のように “丸括弧＋英数字” が続く場合は部分マッチを防ぐ
-    var TOKEN_REF =
-      "(?:" +
-        DIG + "+(?:" + ALPHA + "+)?" +
-        "|\\[" + DIG + "+(?:" + ALPHA + "+)?\\]" +
-        "|\\【" + DIG + "+(?:" + ALPHA + "+)?\\】" +
-      ")(?![\\s\\u3000]*[\\(\\（](?:" + DIG + "|" + ALPHA + "))";
+    // var DIG   = "[0-9０-９]";
+    // var ALPHA = "[A-Za-zＡ-Ｚａ-ｚ]";
 
 
-    var SEP_REF  = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
-    var TAIL_REF = "(" + TOKEN_REF + "(?:" + SEP_REF + TOKEN_REF + ")*)";
 
-    var KEYWORD_REF_RE = new RegExp(
-      "(" + KEYWORDS_REF_NC + ")" +
-        "(?![\\s\\u3000]*" + PARTICLE + ")" +
-        "([\\s\\u3000]*[:：]?[\\s\\u3000]*)" +
-        TAIL_REF,
-      "g"
-    );
+    s = repKW(s,["引用文献", "文献", "相違点", "主張", "理由"],
+      kw("[0-9]+","","","[、]|[-]|及び|又は"),fwAlnum);
 
-    // -------------------------------
-    // CLAIM側：従来どおり ()（）も許可
-    // -------------------------------
-    var TOKEN_CLAIM = "(?:[\\(\\（\\[\\【]?" + DIG + "+(?:" + ALPHA + "+)?[\\)\\）\\]\\】]?)";
-    var SEP_CLAIM  = "(?:[\\s\\u3000]*(?:及び|又は|[、,，]|[-‐-–—−]|[\\.．])[\\s\\u3000]*)";
-    var TAIL_CLAIM = "(" + TOKEN_CLAIM + "(?:" + SEP_CLAIM + TOKEN_CLAIM + ")*)";
+    s = repKW(s,["請求項", "前記", "上記", "記載"],
+      kw("[0-9]+","\\(","\\)","[、]|[-]|[\\(\\)]|及び|又は"),fwAlnum);
 
-    var KEYWORD_CLAIM_RE = new RegExp(
-      "(" + KEYWORDS_CLAIM_NC + ")" +
-        "(?![\\s\\u3000]*" + PARTICLE + ")" +
-        "([\\s\\u3000]*[:：]?[\\s\\u3000]*)" +
-        TAIL_CLAIM,
-      "g"
-    );
+    s = repKW(s,["段落"],
+      kw("[0-9]+","\\[","\\]","[、]|[-]|[\\[\\]]|及び|又は"),fwAlnum);
 
-    // -------------------------------
-    // 置換（引数は常に 3つ：kw, sep2, tail）
-    // -------------------------------
-    s = s.replace(KEYWORD_REF_RE, function (_all, kw, sep2, tail) {
-      return kw + sep2 + fwAlnum(removeWS(tail));
-    });
+    s = repKW(s,["図"],
+      kw("[0-9a-zA-z]+","","","[、]|[-]|及び|又は"),fwAlnum);
 
-    s = s.replace(KEYWORD_CLAIM_RE, function (_all, kw, sep2, tail) {
-      return kw + sep2 + fwAlnum(removeWS(tail));
-    });
+    s = repKW(s,["式"],
+      kw("[0-9a-zA-z]+","\\(","\\)","[、]|[-]|[\\(\\)]|及び|又は"),fwAlnum);
 
 
     return s;
   }
+
+    /**
+   * 「STAR_WORD + KEYWORD」のうち、KEYWORD 部分だけを f で変換して置換する。
+   *
+   * 例: "引用文献1-3" の "1-3" だけを変換したい、など。
+   *
+   * @param {string} str                  入力テキスト
+   * @param {string|string[]} stars       STAR_WORD（例: "引用文献" / ["引用文献","段落"]）
+   * @param {string|RegExp} kwPattern     KEYWORD のパターン（RegExp でも source 文字列でもOK）
+   *                                     例: "[0-9０-９、,\\-－及び又は]+"
+   * 数字列（全角/半角）を、「、」「,」「-」「－」「及び」「又は」で連結したものvar KEYWORD = String.raw`(?:[0-9０-９]+(?:[ \t\u3000]*(?:[、,]|[\-－]|及び|又は)[ \t\u3000]*[0-9０-９]+)*)`;
+   * @param {(kwd:string, star:string, all:string)=>string} f
+   *                                     KEYWORD部分(kwd)に適用する関数
+   * @returns {string}
+   */
+  function repKW(str, stars, kwPattern, f) {
+    str = String(str ?? "");
+
+    // STAR_WORD を配列化
+    var starList = Array.isArray(stars) ? stars : [stars];
+    starList = starList.filter(function (s) { return s != null && String(s) !== ""; });
+    if (!starList.length) return str;
+
+    // kwPattern を source 文字列化（/.../ ではなく source を想定）
+    var kwSrc = (kwPattern instanceof RegExp) ? kwPattern.source : String(kwPattern ?? "");
+    if (!kwSrc) return str;
+
+    // STAR_WORD を正規表現化（長い語を優先して誤マッチを減らす）
+    var starSrc = starList
+      .map(function (s) { return escRe(String(s)); })
+      .sort(function (a, b) { return b.length - a.length; })
+      .join("|");
+
+    // STAR_WORD の直後の空白は任意（半角/タブ/全角スペース）
+    var re = new RegExp("(" + starSrc + ")([ \\t\\u3000]*)(" + kwSrc + ")", "g");
+
+    var fn = (typeof f === "function") ? f : function (x) { return x; };
+
+    // _all / star / between / kwd で受けて、kwd だけ変換して戻す
+    return str.replace(re, function (_all, star, between, kwd) {
+      var kwd2 = fn(kwd, star, _all);
+      return star + between + kwd2;
+    });
+
+    // 正規表現用のエスケープ
+    function escRe(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    }
+  }
+
+  /**
+   * KEYWORD パターンを生成して返す（文字列）
+   *
+   * 例: １−３及び５ / （１）−３及び５ にマッチ
+   *
+   * @param {string} dig   [0-9] 相当（例: "[0-9０-９]" や "\\d" や "[0-9０-９]+" など）
+   * @param {string} pL    "(" 相当（例: "[（(]" や "\\("）。"" の場合は括弧付き数字なし
+   * @param {string} pR    ")" 相当（例: "[）)]" や "\\)"）。"" の場合は括弧付き数字なし
+   * @param {string} sep   連結語/記号（例: "[、,]|及び|又は" など）
+   * @returns {string} KEYWORD 用の正規表現 source
+   */
+  function kw(dig, pL, pR, sep) {
+    dig = String(dig ?? "");
+    pL  = String(pL  ?? "");
+    pR  = String(pR  ?? "");
+    sep = String(sep ?? "");
+
+    if (!dig) return ""; // 最低限
+
+    // dig に 1回以上の量指定が無いなら + を足す（例: "[0-9]" -> "[0-9]+", "\d" -> "\d+"）
+    var DIG = addPlus(dig);
+
+    // 括弧付き数字を使うか（どちらかが "" なら無効）
+    var useParen = !!(pL && pR);
+
+    // NUM: 通常数字 or 括弧付き数字
+    var NUM = useParen
+      ? String.raw`(?:${DIG}|(?:${pL}${DIG}${pR}))`
+      : String.raw`(?:${DIG})`;
+
+    // 許容するダッシュ（固定：必要ならここを外出ししてもOK）
+    var DASH = String.raw`(?:-|－|−)`;
+
+    // TERM: NUM または NUM−NUM
+    var TERM = String.raw`(?:${NUM}(?:\s*${DASH}\s*${NUM})?)`;
+
+    // 連結（sep は "A|B|C" を想定。こちらで (?:...) に包む）
+    var SEP = sep ? String.raw`(?:${sep})` : String.raw`(?:[、,]|及び|又は)`;
+
+    // KEYWORD
+    return String.raw`(?:${TERM}(?:\s*${SEP}\s*${TERM})*)`;
+
+    function addPlus(src) {
+      src = String(src);
+      // 末尾が量指定っぽいならそのまま（+,*,?,{...}）
+      if (/[+*?]$/.test(src) || /\}\s*$/.test(src)) return src;
+      return src + "+";
+    }
+  }
+
 
   // ======================================================================
   // 6. 引用箇所番号全角化（安全側：数字開始のみ）
@@ -727,11 +794,11 @@
       return kw + sep2 + fwAlnum(removeWS(tail));
     });
 
-    // 図/式/段落
-    var reOther = new RegExp("(図|式|段落)([\\s\\u3000:：]*?)" + TAIL, "g");
-    s = s.replace(reOther, function (_all, kw2, sep3, tail2) {
-      return kw2 + sep3 + fwAlnum(removeWS(tail2));
-    });
+    // // 図/式/段落
+    // var reOther = new RegExp("(図|式|段落)([\\s\\u3000:：]*?)" + TAIL, "g");
+    // s = s.replace(reOther, function (_all, kw2, sep3, tail2) {
+    //   return kw2 + sep3 + fwAlnum(removeWS(tail2));
+    // });
 
     return s;
   }

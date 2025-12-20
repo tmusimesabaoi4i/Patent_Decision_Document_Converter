@@ -130,7 +130,8 @@
           return text;
         }
 
-        var names = ["init", "main", "stripBlankLines", "convertEnd"];
+        // var names = ["init", "main", "stripBlankLines", "convertEnd"];
+        var names = ["init", "main", "stripBlankLines", "finalAction"];
 
         return root
           .runTextChains(names, text, /* invokeArgs */ undefined, {
