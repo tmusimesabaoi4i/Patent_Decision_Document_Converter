@@ -203,7 +203,7 @@
     if (str == null || str === "") return "";
     const s = String(str);
 
-    const startMarkers = ["引用文献１(特に段落"]; // 必要に応じて他のパターンを追加
+    const startMarkers = ["引用文献１(特に", "引用文献２(特に"]; // 必要に応じて他のパターンを追加
     const endMarkers = ["　ことが記載されている。", "　が記載されている。"];
 
     // 間の空白は、半角/全角スペース・タブ・改行などを許容
