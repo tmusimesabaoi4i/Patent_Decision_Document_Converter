@@ -171,6 +171,10 @@
   var convertForOther = TextLib_ConvertForCau.convertForOther;
   var applyFlexibleMap = TextLib_ConvertForCau.applyFlexibleMap;
 
+  var paragraphExtraction = root.paragraphExtraction || null;
+
+  var extractParagraphAndFigureRefs = paragraphExtraction.extractParagraphAndFigureRefs;
+
   // -------------------------------------------------------------------------
   // FilterRegistry インスタンスの生成
   // -------------------------------------------------------------------------
@@ -299,6 +303,10 @@
 
   textFilterRegistry.register("finalAction", [
     convertForOther,
+  ]);
+
+  textFilterRegistry.register("parExtract", [
+    extractParagraphAndFigureRefs,
   ]);
 
   // -------------------------------------------------------------------------

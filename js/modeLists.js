@@ -320,6 +320,49 @@
     set pct_eng(value) {
       this._pct_eng = value;
     },
+    /**
+     * 段落抽出・整形パイプライン（EN）
+     * 原文が主に英語の文書から「段落を抽出して、整形した形式で出力」するための処理チェーン。
+     */
+    _paragraph: [
+      /**
+       * Office文書向けの共通前処理（EN）
+       * - TextFilterRegistry に登録された複数のパイプライン（チェーン）を順に実行する。
+       * - runTextChains を経由することで、後からパイプラインの追加/改名/差し替えがしやすい。
+       * - root.runTextChains が無い環境では何もせず、そのまま入力を返す。
+       *
+       * @param {string} text 半角化・正規化済みのテキスト
+       * @returns {string|Promise<string>}
+       *   - root.runTextChains が無い場合は string（同期）
+       *   - root.runTextChains がある場合は Promise<string>（非同期）
+       */
+      function (text) {
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        // 実行するチェーン名（必要に応じてここに追加していく）
+        var names = ["parExtract"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[paragraph] runTextChains 実行中にエラー:", err);
+            }
+            // 変換に失敗しても、入力テキストは落とさず返す
+            return text;
+          });
+      }
+    ],
+    get paragraph() {
+      return this._paragraph;
+    },
+    set paragraph(value) {
+      this._paragraph = value;
+    },
   };
 
   // ------------------------------------------------------------------------
