@@ -118,7 +118,6 @@
             </span>
           </label>
           
-          <!-- PCT (English) -->
           <label class="mode-pill">
             <input
               class="mode-input"
@@ -130,6 +129,20 @@
             <span class="mode-pill-label">
               <span class="mode-pill-title">PCT (English)</span>
               <span class="mode-pill-desc">International application (English text)</span>
+            </span>
+          </label>
+
+          <label class="mode-pill">
+            <input
+              class="mode-input"
+              type="radio"
+              name="mode"
+              value="paragraph"
+            />
+            <span class="mode-pill-indicator" aria-hidden="true"></span>
+            <span class="mode-pill-label">
+              <span class="mode-pill-title">Paragraphs</span>
+              <span class="mode-pill-desc">Convert paragraphs</span>
             </span>
           </label>
         </fieldset>
@@ -233,6 +246,7 @@
   <script src="js/stripBlankLines.js"></script>
   <script src="js/textUtilsConvertForDoc.js"></script>
   <script src="js/textUtilsConvertForCau.js"></script>
+  <script src="js/paragraphExtraction.js"></script>
   <script src="js/defaultTextFilters.js"></script>
   <script src="js/modeLists.js"></script>
 
