@@ -280,6 +280,46 @@
     set pct(value) {
       this._pct = value;
     },
+    /**
+     * PCT (Patent Cooperation Treaty / International application) conversion pipeline (EN)
+     * Use this when the source document is primarily in English.
+     */
+    _pct_eng: [
+      /**
+       * Shared pre-processing for Office documents (EN)
+       * - Runs multiple pipelines registered in TextFilterRegistry in order.
+       * - Going through runTextChains makes it easy to add/rename pipelines later.
+       * - The actual return type is Promise<string>. We annotate it as string here because
+       *   callers are expected to be async-aware.
+       *
+       * @param {string} text Half-width normalized text
+       * @returns {string} The actual return value is Promise<string>
+       */
+      function (text) {
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        var names = ["init", "main_PCTENG"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[pct_eng] Error while running runTextChains:", err);
+            }
+            return text;
+          });
+      }
+    ],
+    get pct_eng() {
+      return this._pct_eng;
+    },
+    set pct_eng(value) {
+      this._pct_eng = value;
+    },
   };
 
   // ------------------------------------------------------------------------

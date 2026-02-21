@@ -269,6 +269,17 @@
     tightClaims,
   ]);
 
+  textFilterRegistry.register("main_PCTENG", [
+    padHead,
+    trimHead,
+    tightBelowBullet, // 下の改行を詰める(箇条書き系は全角になると反応しないので、)
+    fwHead,
+    fwNumLaw,
+    fwRefLaw,
+    // alphaCase, // 表とか図の英字を大文字にしない
+    tightClaims,
+  ]);
+
   textFilterRegistry.register("stripBlankLines", [
     stripBlankLinesInCorrectionNote,
     stripBlankLinesInSearchResult,
