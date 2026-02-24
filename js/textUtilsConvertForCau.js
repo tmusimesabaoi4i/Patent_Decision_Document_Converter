@@ -543,6 +543,10 @@
         return "－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－－";
       }
 
+      if (headTrimmed === "<最後の拒絶理由通知とする理由>") {
+        return "　　　　　　　　　　＜最後の拒絶理由通知とする理由＞";
+      }
+
       if (headTrimmed === "<引用文献等一覧>") {
         return "　　　　　　　　　　　　　<引用文献等一覧>";
       }
@@ -571,21 +575,80 @@
    */
   function applyFlexibleMap(str) {
     /**
-     * 正規化前 → 正規化後のターゲット表記
-     * - キーは「代表的な表記」で OK（normalize() で小文字化＋ハイフン/アンダースコア除去される）
-     * - 値は「最終的に表示したい表記」
+     * ============================================================
+     * 1) 通常マップ（広範囲）
+     *    - 空白 / ハイフン / アンダースコアを normalize() で吸収
+     *    - 例: "rrc setup request" / "rrc-setup-request" / "rrc_setup_request"
+     *      -> 同一キー扱い
+     * ============================================================
      */
     const replaceMap = {
-      // --- 基本 ---
-      gNB: "gNB",
+      // ============================================================
+      // 基本 / プラットフォーム / OS
+      // ============================================================
+      gnb: "gNB",
       pa5j: "PA5J",
-      lte: "LTE",
 
-      // --- RAT / 無線方式まわり ---
+      ios: "iOS",
+      ipados: "iPadOS",
+      macos: "macOS",
+      watchos: "watchOS",
+      tvos: "tvOS",
+      android: "Android",
+      androidos: "Android",
+      wearos: "Wear OS",
+      harmonyos: "HarmonyOS",
+
+      wifi: "Wi-Fi",
+      wlan: "WLAN",
+      bluetooth: "Bluetooth",
+      ble: "BLE",
+      nfc: "NFC",
+      uwb: "UWB",
+
+      gnss: "GNSS",
+      gps: "GPS",
+      glonass: "GLONASS",
+      galileo: "Galileo",
+      beidou: "BeiDou",
+      qzss: "QZSS",
+
+      appleid: "Apple ID",
+      icloud: "iCloud",
+      airdrop: "AirDrop",
+      airplay: "AirPlay",
+      facetime: "FaceTime",
+      imessage: "iMessage",
+      appstore: "App Store",
+      googleplay: "Google Play",
+      playstore: "Play Store",
+
+      // ============================================================
+      // 標準化団体 / 仕様文書
+      // ============================================================
+      "3gpp": "3GPP",
+      etsi: "ETSI",
+      itu: "ITU",
+      ietf: "IETF",
+      ieee: "IEEE",
+
+      // ============================================================
+      // RAT / 無線方式 / 3GPP世代
+      // ============================================================
+      lte: "LTE",
+      ltea: "LTE-A",
+      lteadvanced: "LTE-Advanced",
+      lteapro: "LTE-A Pro",
+
+      nr: "NR",
+      "5g": "5G",
+      "5gc": "5GC",
+
       emtc: "eMTC",
       nbiot: "NB-IoT",
       catm1: "Cat-M1",
       cat1: "Cat-1",
+      redcap: "RedCap",
 
       umts: "UMTS",
       wcdma: "WCDMA",
@@ -598,20 +661,36 @@
       eutran: "E-UTRAN",
       eutra: "E-UTRA",
 
-      nr: "NR",
-      "5g": "5G",
-      ltea: "LTE-A",
-      lteadvanced: "LTE-Advanced",
-      lteapro: "LTE-A Pro",
-
       embb: "eMBB",
       urllc: "URLLC",
       mmtc: "mMTC",
+      ciot: "CIoT",
+      lpwa: "LPWA",
 
-      // --- RAN ノード・WG 等 ---
+      // ============================================================
+      // RAN ノード / 構成 / O-RAN / WG
+      // ============================================================
       enb: "eNB",
-      gnb: "gNB",
       ngenb: "ng-eNB",
+      enodeb: "eNodeB",
+      gnodeb: "gNodeB",
+
+      cucp: "CU-CP",
+      cuup: "CU-UP",
+      gnbdu: "gNB-DU",
+      gnbcu: "gNB-CU",
+      gnbcucp: "gNB-CU-CP",
+      gnbcuup: "gNB-CU-UP",
+
+      oran: "O-RAN",
+      ric: "RIC",
+      nearrtric: "Near-RT RIC",
+      nonrtric: "Non-RT RIC",
+      smo: "SMO",
+      e2ap: "E2AP",
+      a1: "A1",
+      o1: "O1",
+      o2: "O2",
 
       ran1: "RAN1",
       ran2: "RAN2",
@@ -621,26 +700,250 @@
       ct1: "CT1",
       ct3: "CT3",
 
-      // --- コアネットワーク / 5GC / EPC ---
+      // ============================================================
+      // セル / CA・DC / TAG・TMG
+      // ============================================================
+      mrdc: "MR-DC",
+      endc: "EN-DC",
+      nrdc: "NR-DC",
+      nedc: "NE-DC",
+
+      mcg: "MCG",
+      scg: "SCG",
+      spcell: "SpCell",
+      pscell: "PSCell",
+      pcell: "PCell",
+      scell: "SCell",
+      servingcell: "ServingCell",
+
+      tag: "TAG",
+      ptag: "pTAG",
+      stag: "sTAG",
+      pstag: "psTAG",
+      tmg: "TMG",
+      tmgs: "TMGs",
+      trp: "TRP",
+      multitrp: "multi-TRP",
+
+      // ============================================================
+      // 物理層 / 多重 / 変調 / チャネル / 信号
+      // ============================================================
+      mimo: "MIMO",
+      beamforming: "Beamforming",
+      tdd: "TDD",
+      fdd: "FDD",
+      ofdm: "OFDM",
+      ofdma: "OFDMA",
+      scfdma: "SC-FDMA",
+      qam: "QAM",
+      qpsk: "QPSK",
+      bpsk: "BPSK",
+      ldpc: "LDPC",
+      polar: "Polar",
+      fec: "FEC",
+
+      pucch: "PUCCH",
+      pusch: "PUSCH",
+      pdcch: "PDCCH",
+      pdsch: "PDSCH",
+      pbch: "PBCH",
+      prach: "PRACH",
+      srs: "SRS",
+      ssb: "SSB",
+      csirs: "CSI-RS",
+      dmrs: "DMRS",
+      ptrs: "PTRS",
+      prs: "PRS",
+      trs: "TRS",
+
+      dci: "DCI",
+      uci: "UCI",
+      harq: "HARQ",
+      bwp: "BWP",
+      cce: "CCE",
+      coreset: "CORESET",
+      searchspace: "SearchSpace",
+      mcs: "MCS",
+      tbs: "TBS",
+      cqi: "CQI",
+      pmi: "PMI",
+      cri: "CRI",
+
+
+      // ランダムアクセス / 同期
+      rach: "RACH",
+      cfra: "CFRA",
+      cbra: "CBRA",
+      timingadvance: "Timing Advance",
+      preamble: "Preamble",
+
+      // ============================================================
+      // 測定 / 品質
+      // ============================================================
+      rsrp: "RSRP",
+      rsrq: "RSRQ",
+      sinr: "SINR",
+      snr: "SNR",
+
+      // ============================================================
+      // L2/L3 / RAN プロトコル / インタフェース
+      // ============================================================
+      rlc: "RLC",
+      mac: "MAC",
+      pdcp: "PDCP",
+      rrc: "RRC",
+      nas: "NAS",
+
+      s1ap: "S1AP",
+      x2ap: "X2AP",
+      xnap: "XnAP",
+      ngap: "NGAP",
+      f1ap: "F1AP",
+      e1ap: "E1AP",
+
+      s1: "S1",
+      x2: "X2",
+      xn: "Xn",
+      e1: "E1",
+      f1: "F1",
+      f1c: "F1-C",
+      f1u: "F1-U",
+      ngc: "NG-C",
+      ngu: "NG-U",
+
+      n1: "N1",
+      n2: "N2",
+      n3: "N3",
+      n4: "N4",
+      n6: "N6",
+      n8: "N8",
+      n10: "N10",
+      n11: "N11",
+      n12: "N12",
+      n13: "N13",
+      n14: "N14",
+      n15: "N15",
+      n16: "N16",
+
+      gtp: "GTP",
+      gtpc: "GTP-C",
+      gtpu: "GTP-U",
+      sctp: "SCTP",
+      udp: "UDP",
+      tcp: "TCP",
+      ipv4: "IPv4",
+      ipv6: "IPv6",
+
+      // ============================================================
+      // RRC 状態 / 手順 / シグナリング（重要）
+      // ============================================================
+      idle: "IDLE",
+      inactive: "INACTIVE",
+      connected: "CONNECTED",
+
+      mib: "MIB",
+      sib: "SIB",
+      sib1: "SIB1",
+      sib2: "SIB2",
+      sib3: "SIB3",
+      sib4: "SIB4",
+      sib5: "SIB5",
+
+      "rrc setup request": "RRC Setup Request",
+      "rrc setup": "RRC Setup",
+      "rrc setup complete": "RRC Setup Complete",
+      "rrc reject": "RRC Reject",
+
+      "rrc resume request": "RRC Resume Request",
+      "rrc resume": "RRC Resume",
+      "rrc resume complete": "RRC Resume Complete",
+
+      "rrc release": "RRC Release",
+
+      "rrc reconfiguration": "RRC Reconfiguration",
+      "rrc reconfiguration complete": "RRC Reconfiguration Complete",
+
+      "rrc reestablishment request": "RRC Reestablishment Request",
+      "rrc reestablishment": "RRC Reestablishment",
+      "rrc reestablishment complete": "RRC Reestablishment Complete",
+      "rrc reestablishment reject": "RRC Reestablishment Reject",
+
+      "security mode command": "Security Mode Command",
+      "security mode complete": "Security Mode Complete",
+      "security mode failure": "Security Mode Failure",
+
+      "ue capability enquiry": "UE Capability Enquiry",
+      "ue capability information": "UE Capability Information",
+      "measurement report": "Measurement Report",
+      "counter check": "Counter Check",
+      "counter check response": "Counter Check Response",
+      "ul information transfer": "UL Information Transfer",
+      "dl information transfer": "DL Information Transfer",
+
+      "rrc connection reconfiguration": "RRCConnectionReconfiguration",
+      "rrc connection reconfiguration complete": "RRCConnectionReconfigurationComplete",
+      "rrc connection reestablishment": "RRCConnectionReestablishment",
+      "rrc connection reestablishment request": "RRCConnectionReestablishmentRequest",
+      "rrc connection reestablishment complete": "RRCConnectionReestablishmentComplete",
+      "rrc connection release": "RRCConnectionRelease",
+      "rrc connection setup": "RRCConnectionSetup",
+      "rrc connection setup complete": "RRCConnectionSetupComplete",
+      "rrc connection request": "RRCConnectionRequest",
+
+      // ============================================================
+      // NAS / Mobility / 状態遷移 / 手順
+      // ============================================================
+      registration: "Registration",
+      deregistration: "Deregistration",
+      attach: "Attach",
+      detach: "Detach",
+      paging: "Paging",
+      handover: "Handover",
+      reselection: "Reselection",
+      rlf: "RLF",
+      "radio link failure": "Radio Link Failure",
+      rlm: "RLM",
+      bfd: "BFD",
+      outofsync: "out-of-sync",
+      insync: "in-sync",
+      meas: "Meas",
+      measid: "MeasId",
+      measobject: "MeasObject",
+      reportconfig: "ReportConfig",
+      eventa1: "Event A1",
+      eventa2: "Event A2",
+      eventa3: "Event A3",
+      eventa4: "Event A4",
+      eventa5: "Event A5",
+
+      // ============================================================
+      // EPC / 5GC / IMS / 音声
+      // ============================================================
       epc: "EPC",
       mme: "MME",
-      sgateway: "SGW",
       sgw: "SGW",
-      pgateway: "PGW",
+      sgateway: "SGW",
       pgw: "PGW",
+      pgateway: "PGW",
+      hss: "HSS",
+      pcrf: "PCRF",
 
       amf: "AMF",
       smf: "SMF",
       upf: "UPF",
       ausf: "AUSF",
       udm: "UDM",
+      udr: "UDR",
       pcf: "PCF",
-      pcrf: "PCRF",
-      hss: "HSS",
-
-      "5gc": "5GC",
-
-      // --- IMS / 音声サービス系 ---
+      nrf: "NRF",
+      nef: "NEF",
+      nssf: "NSSF",
+      ladn: "LADN",
+      smsf: "SMSF",
+      sepp: "SEPP",
+      scp: "SCP",
+      bsf: "BSF",
+      nwdaf: "NWDAF",
       ims: "IMS",
       volte: "VoLTE",
       vonr: "VoNR",
@@ -649,7 +952,27 @@
       srvcc: "SRVCC",
       esrvcc: "eSRVCC",
 
-      // --- 識別子まわり ---
+      // ============================================================
+      // QoS / セッション / ベアラ
+      // ============================================================
+      qos: "QoS",
+      qci: "QCI",
+      "5qi": "5QI",
+      qfi: "QFI",
+      ambr: "AMBR",
+      gbr: "GBR",
+      nongbr: "non-GBR",
+      arp: "ARP",
+      reflectiveqos: "Reflective QoS",
+      pdu: "PDU",
+      "pdu session": "PDU Session",
+      srb: "SRB",
+      drb: "DRB",
+      erab: "E-RAB",
+
+      // ============================================================
+      // 識別子 / 加入者情報 / セル識別
+      // ============================================================
       esim: "eSIM",
       euicc: "eUICC",
       imsi: "IMSI",
@@ -660,76 +983,299 @@
       guti: "GUTI",
       supi: "SUPI",
       suci: "SUCI",
+      tmsi: "TMSI",
+      ptmsi: "P-TMSI",
+      stmsi: "S-TMSI",
+      plmn: "PLMN",
+      tai: "TAI",
+      cgi: "CGI",
+      ecgi: "ECGI",
+      ncgi: "NCGI",
+      pci: "PCI",
+      arfcn: "ARFCN",
+      earfcn: "EARFCN",
+      nrarfcn: "NR-ARFCN",
 
-      // --- チャネル / シグナリング ---
-      pucch: "PUCCH",
-      pusch: "PUSCH",
-      pdcch: "PDCCH",
-      pdsch: "PDSCH",
-      pbch: "PBCH",
-      prach: "PRACH",
-      srs: "SRS",
-      csirs: "CSI-RS",
-      ssb: "SSB",
-
-      rlc: "RLC",
-      mac: "MAC",
-      pdcp: "PDCP",
-      rrc: "RRC",
-      nas: "NAS",
-
-      s1ap: "S1AP",
-      x2ap: "X2AP",
-      ngap: "NGAP",
-      f1ap: "F1AP",
-      e1ap: "E1AP",
-
-      // --- 測定・品質 ---
-      rsrp: "RSRP",
-      rsrq: "RSRQ",
-      sinr: "SINR",
-      snr: "SNR",
-      cqi: "CQI",
-
-      qos: "QoS",
-      qci: "QCI",
-      "5qi": "5QI",
-      ambr: "AMBR",
-
-      // --- セキュリティ関連 ---
+      // ============================================================
+      // セキュリティ / 鍵 / 認証
+      // ============================================================
+      aka: "AKA",
+      eap: "EAP",
+      tls: "TLS",
       kasme: "KASME",
+      kamf: "KAMF",
       kenb: "KeNB",
       kgnb: "KgNB",
+      knas: "KNAS",
+      knasenc: "KNASenc",
+      knasint: "KNASint",
+      krrcenc: "KRRCenc",
+      krrcint: "KRRCint",
+      kupenc: "KUPenc",
 
-      // --- その他 3GPP 周辺でよく出る略語 ---
-      drx: "DRX",
-      endc: "EN-DC",
+      // ============================================================
+      // スライシング / 仮想化 / MEC / クラウド
+      // ============================================================
+      snssai: "S-NSSAI",
+      sst: "SST",
+      nsi: "NSI",
+      mec: "MEC",
+      nfv: "NFV",
+      sdn: "SDN",
+      vnf: "VNF",
+      cnf: "CNF",
 
-      mimo: "MIMO",
-      beamforming: "Beamforming",
-      tdd: "TDD",
-      fdd: "FDD",
-
+      // ============================================================
+      // V2X / NTN / サイドリンク
+      // ============================================================
       v2x: "V2X",
       ltev2x: "LTE-V2X",
       nrv2x: "NR-V2X",
+      sidelink: "Sidelink",
+      pc5: "PC5",
+      ntn: "NTN",
+
+      // ============================================================
+      // 開発 / API / 一般IT
+      // ============================================================
+      api: "API",
+      sdk: "SDK",
+      cli: "CLI",
+      gui: "GUI",
+      json: "JSON",
+      xml: "XML",
+      yaml: "YAML",
+      http: "HTTP",
+      https: "HTTPS",
+      rest: "REST",
+      grpc: "gRPC",
+      websocket: "WebSocket",
+      sql: "SQL",
+      nosql: "NoSQL",
+      uuid: "UUID",
+      jwt: "JWT",
+      oauth: "OAuth",
+      oauth2: "OAuth 2.0",
+      openid: "OpenID",
+      openidconnect: "OpenID Connect",
     };
 
-    // 正規化関数：ハイフン/アンダースコア除去＋小文字化
-    const normalize = (s) => s.replace(/[-_]/g, "").toLowerCase();
+    /**
+     * ============================================================
+     * 2) 条件付き短縮語マップ（誤爆しやすい短語を分離）
+     *    - 単語境界相当（前後が英数字でない）でのみ適用
+     *    - 通常 replaceMap に入れない
+     * ============================================================
+     */
+    const conditionalShortMap = {
+      tr: "TR",
+      ts: "TS",
+      ip: "IP",
+      ho: "HO",
+      ra: "RA",
 
-    // マップの正規化版を作る（キーは normalize 済み）
-    const normalizedMap = {};
-    for (const key in replaceMap) {
-      if (!Object.prototype.hasOwnProperty.call(replaceMap, key)) continue;
-      normalizedMap[normalize(key)] = replaceMap[key];
+      du: "DU",
+      cu: "CU",
+      ue: "UE",
+      ca: "CA",
+      dc: "DC",
+
+      rv: "RV",
+      ri: "RI",
+      li: "LI",
+      ta: "TA",
+
+      af: "AF",
+      dn: "DN",
+      ck: "CK",
+      ik: "IK",
+      sd: "SD",
+
+      ui: "UI",
+      ux: "UX",
+    };
+
+    /**
+     * `nr` が `snr` を壊さないようにするキー（境界制御必須）
+     * 例: "snr" 内の "nr" は不適用 / "nr rrc" の "nr" は適用
+     */
+    const boundarySensitiveKeys = new Set(["nr"]);
+
+    // 正規化関数：空白 / ハイフン / アンダースコア除去＋小文字化
+    const normalize = (s) => String(s).replace(/[\s\-_]/g, "").toLowerCase();
+
+    // ---- ここからロジック（空白対応 + 最長一致 + boundarySensitive + conditionalShort） ----
+
+    function createTrieNode() {
+      return { next: Object.create(null), entry: null };
     }
 
-    // 単語ごとに分割して置換
-    // - \b[\w\-]+\b: 「単語境界に挟まれた英数字＋アンダースコア＋ハイフンのまとまり」
-    return String(str).replace(/\b[\w\-]+\b/gi, function (word) {
-      const norm = normalize(word);
-      return normalizedMap[norm] || word;
+    function isAsciiWordChar(ch) {
+      return !!ch && /[A-Za-z0-9]/.test(ch);
+    }
+
+    function hasAsciiTokenBoundary(chunk, startOrig, endOrigExcl) {
+      const prev = startOrig > 0 ? chunk[startOrig - 1] : "";
+      const next = endOrigExcl < chunk.length ? chunk[endOrigExcl] : "";
+      return !isAsciiWordChar(prev) && !isAsciiWordChar(next);
+    }
+
+    // 正規化後キーごとのエントリを統合（通常/条件付きを区別）
+    // ※ normalize衝突を検出（重複防止）
+    const entryMap = Object.create(null);
+
+    function putEntry(srcType, rawKey, value, options) {
+      const nk = normalize(rawKey);
+      if (!nk) return;
+
+      if (Object.prototype.hasOwnProperty.call(entryMap, nk)) {
+        throw new Error(
+          "[applyFlexibleMap] normalized key collision: '" +
+            rawKey +
+            "' (" +
+            nk +
+            ") conflicts with existing key from " +
+            entryMap[nk].srcType
+        );
+      }
+
+      entryMap[nk] = {
+        key: nk,
+        value: value,
+        srcType: srcType, // "normal" | "conditionalShort"
+        boundarySensitive: !!options.boundarySensitive,
+        conditionalShort: !!options.conditionalShort,
+      };
+    }
+
+    for (const key in replaceMap) {
+      if (!Object.prototype.hasOwnProperty.call(replaceMap, key)) continue;
+      putEntry("normal", key, replaceMap[key], {
+        boundarySensitive: boundarySensitiveKeys.has(normalize(key)),
+        conditionalShort: false,
+      });
+    }
+
+    for (const key in conditionalShortMap) {
+      if (!Object.prototype.hasOwnProperty.call(conditionalShortMap, key)) continue;
+      putEntry("conditionalShort", key, conditionalShortMap[key], {
+        boundarySensitive: true, // 短語は境界必須
+        conditionalShort: true,
+      });
+    }
+
+    // Trie 構築（最長一致）
+    const trieRoot = createTrieNode();
+    for (const nk in entryMap) {
+      if (!Object.prototype.hasOwnProperty.call(entryMap, nk)) continue;
+      let node = trieRoot;
+      for (let i = 0; i < nk.length; i++) {
+        const ch = nk[i];
+        if (!node.next[ch]) node.next[ch] = createTrieNode();
+        node = node.next[ch];
+      }
+      node.entry = entryMap[nk];
+    }
+
+    // chunk（英数字+空白+_- の連続）内で、正規化位置 i からの「適用可能な最長一致」を返す
+    function findLongestApplicableMatch(chunk, norm, normToOrig, i) {
+      let node = trieRoot;
+      let best = null;
+
+      for (let j = i; j < norm.length; j++) {
+        node = node.next[norm[j]];
+        if (!node) break;
+
+        if (node.entry) {
+          const end = j + 1;
+          const startOrig = normToOrig[i];
+          const endOrigExcl = normToOrig[end - 1] + 1;
+
+          // 境界制御（nr, 条件付き短語など）
+          if (node.entry.boundarySensitive) {
+            if (!hasAsciiTokenBoundary(chunk, startOrig, endOrigExcl)) {
+              continue;
+            }
+          }
+
+          // 条件付き短語は、さらに「元表記スパンの中に空白/ハイフン/アンダースコアを含まない」制約を入れる
+          // （例: "H O" を "HO" にしない、"R-A" を "RA" にしない）
+          if (node.entry.conditionalShort) {
+            const rawSpan = chunk.slice(startOrig, endOrigExcl);
+            if (/[\s\-_]/.test(rawSpan)) {
+              continue;
+            }
+          }
+
+          best = {
+            value: node.entry.value,
+            end: end,
+          };
+        }
+      }
+
+      return best;
+    }
+
+    // 英数字/空白/_/- を含む chunk を左→右に最長一致で置換（部分置換あり）
+    // ※ 部分置換時も boundarySensitive / conditionalShort で誤爆抑制
+    function replaceChunkByOrder(chunk) {
+      const chars = String(chunk);
+      let norm = "";
+      const normToOrig = []; // norm[k] -> chars index
+
+      for (let i = 0; i < chars.length; i++) {
+        const c = chars[i];
+        if (c === " " || c === "\t" || c === "\n" || c === "\r" || c === "-" || c === "_") {
+          continue;
+        }
+        norm += c.toLowerCase();
+        normToOrig.push(i);
+      }
+
+      if (!norm) return chunk;
+
+      let out = "";
+      let origCursor = 0;
+      let i = 0;
+
+      while (i < norm.length) {
+        const m = findLongestApplicableMatch(chars, norm, normToOrig, i);
+
+        if (!m) {
+          // この正規化文字1文字だけ元のまま出す（間の区切りも保持）
+          const nextOrigExcl = normToOrig[i] + 1;
+          out += chars.slice(origCursor, nextOrigExcl);
+          origCursor = nextOrigExcl;
+          i += 1;
+          continue;
+        }
+
+        const startOrig = normToOrig[i];
+        const endOrigExcl = normToOrig[m.end - 1] + 1;
+
+        // マッチ前の生文字列（区切り等を含む）を保持
+        if (origCursor < startOrig) {
+          out += chars.slice(origCursor, startOrig);
+        }
+
+        out += m.value;
+        origCursor = endOrigExcl;
+        i = m.end;
+      }
+
+      // chunk末尾の残り
+      if (origCursor < chars.length) {
+        out += chars.slice(origCursor);
+      }
+
+      return out;
+    }
+
+    // 文字列全体から「英数字で始まる、英数字/空白/_/- の連続塊」を抽出して処理
+    // 空白を含む句（例: "rrc setup request"）にも対応
+    return String(str).replace(/[A-Za-z0-9][A-Za-z0-9\s_-]*/g, function (chunk) {
+      return replaceChunkByOrder(chunk);
     });
   }
 

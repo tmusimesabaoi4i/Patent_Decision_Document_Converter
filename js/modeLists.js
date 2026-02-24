@@ -363,6 +363,40 @@
     set paragraph(value) {
       this._paragraph = value;
     },
+    _html: [
+      /**
+       * @param {string} text 半角化・正規化済みのテキスト
+       * @returns {string|Promise<string>}
+       *   - root.runTextChains が無い場合は string（同期）
+       *   - root.runTextChains がある場合は Promise<string>（非同期）
+       */
+      function (text) {
+        if (typeof root.runTextChains !== "function") {
+          return text;
+        }
+
+        // 実行するチェーン名（必要に応じてここに追加していく）
+        var names = ["tohtml"];
+
+        return root
+          .runTextChains(names, text, /* invokeArgs */ undefined, {
+            stopOnError: true
+          })
+          .catch(function (err) {
+            if (typeof console !== "undefined" && console.error) {
+              console.error("[HTML] runTextChains 実行中にエラー:", err);
+            }
+            // 変換に失敗しても、入力テキストは落とさず返す
+            return text;
+          });
+      }
+    ],
+    get html() {
+      return this._html;
+    },
+    set html(value) {
+      this._html = value;
+    },
   };
 
   // ------------------------------------------------------------------------

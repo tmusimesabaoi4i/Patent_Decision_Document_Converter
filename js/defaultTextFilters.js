@@ -172,8 +172,11 @@
   var applyFlexibleMap = TextLib_ConvertForCau.applyFlexibleMap;
 
   var paragraphExtraction = root.paragraphExtraction || null;
+  var makeHtml = root.makeHtml || null;
 
   var extractParagraphAndFigureRefs = paragraphExtraction.extractParagraphAndFigureRefs;
+  var to_HTML = makeHtml.to_HTML;
+
 
   // -------------------------------------------------------------------------
   // FilterRegistry インスタンスの生成
@@ -263,6 +266,7 @@
   ]);
 
   textFilterRegistry.register("main", [
+    applyFlexibleMap,
     padHead,
     trimHead,
     tightBelowBullet, // 下の改行を詰める(箇条書き系は全角になると反応しないので、)
@@ -274,6 +278,7 @@
   ]);
 
   textFilterRegistry.register("main_PCTENG", [
+    applyFlexibleMap,
     padHead,
     trimHead,
     tightBelowBullet, // 下の改行を詰める(箇条書き系は全角になると反応しないので、)
@@ -307,6 +312,10 @@
 
   textFilterRegistry.register("parExtract", [
     extractParagraphAndFigureRefs,
+  ]);
+
+  textFilterRegistry.register("tohtml", [
+    to_HTML,
   ]);
 
   // -------------------------------------------------------------------------
